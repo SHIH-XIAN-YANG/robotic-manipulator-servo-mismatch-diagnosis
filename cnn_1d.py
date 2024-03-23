@@ -10,6 +10,7 @@ import json
 import numpy as np
 import pymysql
 import time
+from tqdm import tqdm
 
 from model_playground import *
     
@@ -86,6 +87,7 @@ min_bandwidth = min_bandwidth.reshape((-1, len(arr)))
 # # print(row)
 # ori_contour_err = ori_contour_err.reshape((-1, len(json.loads(row[0]))))
 
+print("fetch data from database...")
 sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM bw_mismatch_joints_data;"
 cursor.execute(sql)
 tracking_err_j2 = np.array([])
@@ -94,7 +96,8 @@ data = cursor.fetchall()
 min_bandwidth = []
 tracking_err_joints = [[] for _ in range(6)]
 
-for _, row in enumerate(data):
+print("load data...")
+for _, row in tqdm(enumerate(data), total=len(data)):
     min_bandwidth.append(row[1])
     for i in range(6):
         tracking_err_joints[i].append(json.loads(row[i+2]))
@@ -196,15 +199,18 @@ loss_epoch_C = []
 top2_train_acc = []
 top2_test_acc = []
 
+best_acc = 0
+best_model:dict
+
 #%%
 # Train the model
-for epoch in range(epochs):
+for epoch in (range(epochs)):
     correct_train, total_train = 0, 0
     correct_test, total_test = 0, 0
     top2_correct_train, top2_correct_test = 0,0
     train_loss_C = 0
 
-    for data, target in train_dataloader:
+    for data, target in tqdm(train_dataloader):
         # if torch.is_tensor(data) and data.dtype == torch.double:
         #     data = data.float()
             # target  = target.long()
@@ -255,15 +261,19 @@ for epoch in range(epochs):
             # print(target)
             correct_test += (predicted == target).sum().item()
             top2_correct_test += torch.sum(torch.eq(predicted_top2[:, 0], target) | torch.eq(predicted_top2[:, 1], target)).item()
+        if (100*correct_test/total_test) > best_acc:
+            best_acc = (100*correct_test/total_test)
+            best_model = model.state_dict()
         train_acc.append(100 * correct_train / total_train)
         test_acc.append(100 * correct_test / total_test)
         loss_epoch_C.append(train_loss_C / len(train_dataloader))
         top2_train_acc.append(100*(top2_correct_train/total_train)) # training accuracy
         top2_test_acc.append(100*(top2_correct_test / total_test))
         print(f'Testing acc : {correct_test / total_test} | Top 2 Test acc: {top2_correct_test / total_test}')
+        
 
 # Save the model (optional)
-torch.save(model.state_dict(), "model.pth")
+torch.save(best_model, f"best_model_acc_{best_acc}.pth")
 plt.figure()
 plt.plot(list(range(epochs)), loss_epoch_C) # plot your loss
 plt.title('Training Loss')

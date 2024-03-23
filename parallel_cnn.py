@@ -12,7 +12,8 @@ import numpy as np
 
 from PIL import Image
 import matplotlib.pyplot as plt
-from model_playground import CustomResNet
+from model_playground import ThreeImageCNN
+from tqdm import tqdm
 
 # Define custom dataset
 class CustomDataset(Dataset):
@@ -134,12 +135,12 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Define training parameters
 learning_rate = 0.001
-num_epochs = 550
+num_epochs = 500
 batch_size = 64
 
 
 # Initialize model, loss, optimizer
-model = CustomResNet(input_channels=3*3).to(device)
+model = ThreeImageCNN(num_classes=6).to(device)
 criterion = nn.CrossEntropyLoss()
 # optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
@@ -182,7 +183,7 @@ for epoch in range(num_epochs):
     train_loss_C = 0.0
 
     if epoch == 20:
-        learning_rate=0.0003
+        learning_rate=0.0005
         for param_name,param in model.named_parameters():
             if param_name in param_list[len(param_list)-10:len(param_list)-2]:
                 param.requires_grad=True
@@ -218,7 +219,7 @@ for epoch in range(num_epochs):
     #optimizer = Adam(parameter, lr=lr,eps=1e-08)
     optimizer_C=AdamW(parameter, lr=learning_rate, amsgrad=True)
 
-    for i, (inputs, labels) in enumerate(train_loader):
+    for i, (inputs, labels) in tqdm(enumerate(train_loader)):
         if (i+1) % (total_samples/100) == 0:
             progress_bar.append("=")
             print(f' ||epoch {epoch+1}/{num_epochs}, step {i+1}/{total_samples}',end='\r')
@@ -283,6 +284,7 @@ plt.ylabel('loss'), plt.xlabel('epoch')
 plt.legend(['loss_C'], loc = 'upper left')
 plt.grid(True)
 plt.show()
+plt.savefig('parallel_cnn_loss.png')
 
 plt.figure()
 plt.plot(list(range(num_epochs)), train_acc)    # plot your training accuracy
@@ -292,6 +294,7 @@ plt.ylabel('acc (%)'), plt.xlabel('epoch')
 plt.legend(['training acc', 'testing acc'], loc = 'upper left')
 plt.grid(True)
 plt.show()
+plt.savefig('parallel_cnn_acc.png')
 
 plt.figure()
 plt.plot(list(range(num_epochs)), top2_train_acc)    # plot your training accuracy
@@ -301,4 +304,5 @@ plt.ylabel('acc (%)'), plt.xlabel('epoch')
 plt.legend(['training acc', 'val acc'], loc = 'upper left')
 plt.grid(True)
 plt.show()
+plt.savefig('parallel_cnn_top2_acc.png')
 # %%

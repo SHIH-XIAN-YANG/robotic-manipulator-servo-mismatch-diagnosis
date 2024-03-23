@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 from torchvision import transforms
-
+from plotneuralnet import plotneuralnet
 import numpy as np
 
 class MobileNetV2(nn.Module):
@@ -54,10 +54,10 @@ class MobileNetV2(nn.Module):
 
 # Define the model architecture
 class CustomResNet(nn.Module):
-    def __init__(self, pretrained=True):
+    def __init__(self, pretrained=True,input_channels=6):
         super(CustomResNet, self).__init__()
         self.base_model = models.resnet18(weights='ResNet18_Weights.DEFAULT')
-        self.base_model.conv1 = nn.Conv2d(3 * 2, 64, kernel_size=7, stride=2, padding=3, bias=False)  # Replace first conv with 3*2 channels
+        self.base_model.conv1 = nn.Conv2d(input_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)  # Replace first conv with 3*2 channels
         num_ftrs = self.base_model.fc.in_features
         self.base_model.fc = nn.Linear(num_ftrs, 6)
 
@@ -124,8 +124,8 @@ class CNN1D(nn.Module):
         x = self.dropout1(x)
         x = self.pool(self.relu(self.batch_norm2(self.conv2(x))))
         x = self.dropout2(x)
-        x = self.pool(self.relu(self.batch_norm3(self.conv3(x))))
-        x = self.dropout3(x)
+        # x = self.pool(self.relu(self.batch_norm3(self.conv3(x))))
+        # x = self.dropout3(x)
         # x = self.pool(self.relu(self.batch_norm4(self.conv4(x))))
         # x = self.dropout4(x)
         # x = self.pool(self.relu(self.batch_norm5(self.conv5(x))))
@@ -139,13 +139,85 @@ class CNN1D(nn.Module):
         # x = self.fc2(x)
         x = self.fc3(x)
         return x
+    
+class ThreeImageCNN(nn.Module):
+    def __init__(self, num_classes):
+        super(ThreeImageCNN, self).__init__()
+        
+        # Convolutional layers for image 1
+        self.conv1_img1 = nn.Conv2d(3, 16, kernel_size=3, padding=1)
+        self.conv2_img1 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
+        # self.conv3_img1 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        
+        # Convolutional layers for image 2
+        self.conv1_img2 = nn.Conv2d(3, 16, kernel_size=3, padding=1)
+        self.conv2_img2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
+        # self.conv3_img2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        
+        # Convolutional layers for image 3
+        self.conv1_img3 = nn.Conv2d(3, 16, kernel_size=3, padding=1)
+        self.conv2_img3 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
+        # self.conv3_img3 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        
+        # Fully connected layers after concatenation
+        #600 * 600 input image after two maxpool-->150*150
+        self.fc1 = nn.Linear(3*32*150*150, 128)
+        self.fc2 = nn.Linear(128, num_classes)
+        
+    def forward(self, x1, x2, x3):
+        # Image 1 processing
+        x1 = F.relu(self.conv1_img1(x1))
+        x1 = F.max_pool2d(x1, 2)
+        x1 = F.relu(self.conv2_img1(x1))
+        x1 = F.max_pool2d(x1, 2)
+        # x1 = F.relu(self.conv3_img1(x1))
+        # x1 = F.max_pool2d(x1, 2)
+        
+        # Image 2 processing
+        x2 = F.relu(self.conv1_img2(x2))
+        x2 = F.max_pool2d(x2, 2)
+        x2 = F.relu(self.conv2_img2(x2))
+        x2 = F.max_pool2d(x2, 2)
+        # x2 = F.relu(self.conv3_img2(x2))
+        # x2 = F.max_pool2d(x2, 2)
+        
+        # Image 3 processing
+        x3 = F.relu(self.conv1_img3(x3))
+        x3 = F.max_pool2d(x3, 2)
+        x3 = F.relu(self.conv2_img3(x3))
+        x3 = F.max_pool2d(x3, 2)
+        # x3 = F.relu(self.conv3_img3(x3))
+        # x3 = F.max_pool2d(x3, 2)
+        
+        # Concatenate the feature maps
+        x = torch.cat((x1, x2, x3), dim=1)
+        # print(x.shape)
+        x = x.view(-1, 96*150*150)  # Reshape for fully connected layer
+        
+        # print(x.shape)
+        x = F.relu(self.fc1(x))
+
+        x = self.fc2(x)
+        
+        return x
 
 if __name__=="__main__":
-    # Instantiate the model
-    model = CNN1D(input_dim=6, output_dim=6)
+    
+    # Create an instance of the model
+    model = ThreeImageCNN(num_classes=6)
 
-    # Testing the model with random input
-    random_input = torch.randn(64, 6, 10568)  # Assuming input size is 224x224
-    output = model(random_input)
-    print(output.shape)
+    # model = CustomResNet(input_channels=9)
+
+    # Define an example input with 3 images (batch size = 1, channels = 3, height = 32, width = 32)
+    image1 = torch.randn(1, 3, 600, 600)
+    image2 = torch.randn(1, 3, 600, 600)
+    image3 = torch.randn(1, 3, 600, 600)
+
+    # stacked_images = torch.cat((image1, image2, image3), dim=1)
+
+
+
+    # Forward pass
+    output = model(image1, image2, image3)
+    print(output.shape)  # Output shape should be (1, 6) for a single example and 6 classes
 

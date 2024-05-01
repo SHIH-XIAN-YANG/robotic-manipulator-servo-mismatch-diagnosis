@@ -38,8 +38,8 @@ class CustomDataset(Dataset):
             image2 = self.transform(image2)
             image3 = self.transform(image3)
 
-        concatenated_image = torch.cat((image1, image2, image3), dim=0)
-        return concatenated_image, label
+        # concatenated_image = torch.cat((image1, image2, image3), dim=0)
+        return (image1, image2, image3), label
 
 def data_load(data_path):
     # connect to databse
@@ -58,8 +58,7 @@ def data_load(data_path):
     min_bandwidth = np.array([])
     data = cursor.fetchall()
     all_labels = []
-    # for idx, row in enumerate(data):
-    #     all_labels.append(row[0])
+
 
     # Define paths for images and labels (modify based on your data structure)
     images1_path = os.path.join(data_path, "contour_error")
@@ -132,17 +131,18 @@ transform = transforms.Compose([
 
 # Check for GPU availability
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print(device)
 
 # Define training parameters
 learning_rate = 0.001
 num_epochs = 500
-batch_size = 64
+batch_size = 32
 
 
 # Initialize model, loss, optimizer
 model = ThreeImageCNN(num_classes=6).to(device)
 criterion = nn.CrossEntropyLoss()
-# optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
 data_path = 'C:\\Users\\Samuel\\Desktop\\mismatch_dataset\\'
 
@@ -169,10 +169,6 @@ for param_name,param in model.named_parameters():
     param_list.append(param_name)
     print(f'layer:{i}_name:{param_name}')
 
-for param_name,param in model.named_parameters():
-    if param_name not in param_list[len(param_list)-10:]:
-        param.requires_grad=False
-
 # Training loop
 for epoch in range(num_epochs):
     model.train()
@@ -182,44 +178,8 @@ for epoch in range(num_epochs):
     top2_correct_train, top2_correct_test = 0,0
     train_loss_C = 0.0
 
-    if epoch == 20:
-        learning_rate=0.0005
-        for param_name,param in model.named_parameters():
-            if param_name in param_list[len(param_list)-10:len(param_list)-2]:
-                param.requires_grad=True
-    elif epoch ==50:
-        learning_rate=0.0002
-        for param_name,param in model.named_parameters():
-            if param_name in param_list[len(param_list)-31:len(param_list)-10]:
-                param.requires_grad=True
-    elif epoch ==150:
-        for param_name,param in model.named_parameters():
-            if param_name in param_list[len(param_list)-58:len(param_list)-31]:
-                param.requires_grad=True
-    elif epoch ==250:
-        for param_name,param in model.named_parameters():
-            if param_name in param_list[len(param_list)-88:len(param_list)-58]:
-                param.requires_grad=True
-    elif epoch ==400:
-        for param_name,param in model.named_parameters():
-            if param_name in param_list[len(param_list)-106:len(param_list)-88]:
-                param.requires_grad=True
-    elif epoch ==450:
-        learning_rate=0.0001
-        for param_name,param in model.named_parameters():
-            if param_name in param_list[len(param_list)-136:len(param_list)-106]:
-                param.requires_grad=True
-    elif epoch ==550:
-        for param_name,param in model.named_parameters():
-            if param_name in param_list[len(param_list)-161:len(param_list)-136]:
-                param.requires_grad=True
-                
-    parameter=filter(lambda p:p.requires_grad,model.parameters())
-    #optimizer=SGD(parameter, lr=lr, momentum=0.9, nesterov = True)
-    #optimizer = Adam(parameter, lr=lr,eps=1e-08)
-    optimizer_C=AdamW(parameter, lr=learning_rate, amsgrad=True)
 
-    for i, (inputs, labels) in tqdm(enumerate(train_loader)):
+    for i, (inputs, labels) in enumerate(train_loader):
         if (i+1) % (total_samples/100) == 0:
             progress_bar.append("=")
             print(f' ||epoch {epoch+1}/{num_epochs}, step {i+1}/{total_samples}',end='\r')
@@ -227,15 +187,17 @@ for epoch in range(num_epochs):
             #print(f'epoch {epoch+1}/{epochs}|',end="")
             for idx, progress in enumerate(progress_bar):
                 print(progress,end="")
-
-        inputs, labels = inputs.to(device), labels.to(device)
-        optimizer_C.zero_grad()
+        inputs = [input.to(device) for input in inputs]
+        labels = labels.to(device)
+        optimizer.zero_grad()
+        # print(type(inputs))
+        # print(len(inputs))
         outputs = model(inputs)
         # print(outputs.shape)
         # print(outputs)
         loss = criterion(outputs, labels)
         loss.backward()
-        optimizer_C.step()
+        optimizer.step()
         running_loss += loss.item()
 
         _, predicted = torch.max(outputs.data, 1)
@@ -257,7 +219,8 @@ for epoch in range(num_epochs):
   
     with torch.no_grad():
         for i, (inputs, labels) in enumerate(test_loader):
-            inputs, labels = inputs.to(device), labels.to(device)
+            inputs = [input.to(device) for input in inputs]
+            labels = labels.to(device)
             outputs = model(inputs)
             _, predicted = torch.max(outputs.data, 1)
             _, predicted_top2 = torch.topk(outputs.data, 2, dim=1)

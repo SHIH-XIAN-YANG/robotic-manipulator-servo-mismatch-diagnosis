@@ -56,7 +56,7 @@ cursor = connction.cursor()
 # bandwidth = bandwidth.reshape((-1,len(json.loads(row[0]))))
 
 # print(bandwidth)
-sql = "SELECT min_bandwidth FROM bw_mismatch_data;"
+sql = "SELECT min_bandwidth FROM bw_mismatch_data_new;"
 cursor.execute(sql)
 min_bandwidth = np.array([])
 data = cursor.fetchall()
@@ -90,7 +90,6 @@ min_bandwidth = min_bandwidth.reshape((-1, len(arr)))
 print("fetch data from database...")
 sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM bw_mismatch_joints_data;"
 cursor.execute(sql)
-tracking_err_j2 = np.array([])
 data = cursor.fetchall()
 
 min_bandwidth = []

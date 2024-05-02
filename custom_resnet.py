@@ -16,7 +16,7 @@ from model_playground import CustomResNet
 
 # Define custom dataset
 class CustomDataset(Dataset):
-    def __init__(self, images1, images2,images3,images4, labels, transform=None):
+    def __init__(self, images1, images2,images3,images4, labels, transform):
         self.images1 = images1
         self.images2 = images2
         self.images3 = images3
@@ -119,10 +119,10 @@ def data_split(data_path, split_ratio=0.8, batch_size=32, transform=None):
     test_images4 = [load_and_preprocess(path) for path in test_images4]
 
     # Create datasets and dataloaders
-    train_dataset = CustomDataset(train_images1, train_images2,train_images3,train_images4, train_labels, transform=transform)
+    train_dataset = CustomDataset((train_images1, train_images2, train_images3, train_images4), train_labels, transform=transform)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
-    test_dataset = CustomDataset(test_images1, test_images2,test_images3,test_images4, test_labels, transform=transform)
+    test_dataset = CustomDataset((test_images1, test_images2,test_images3,test_images4), test_labels, transform=transform)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     return train_loader, test_loader

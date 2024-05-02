@@ -4,7 +4,38 @@ import torch.nn.functional as F
 from torchvision import models
 from torchvision import transforms
 import numpy as np
+from torch.utils.data import Dataset, DataLoader
 
+class CustomDataset(Dataset):
+    def __init__(self, images,images2,images3,images4, labels, transform=None):
+        
+        # self.images = images
+        self.images1 = images
+        self.images2 = images2
+        self.images3 = images3
+        self.images4 = images4
+
+        self.labels = labels
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+
+        image1 = self.images1[idx]
+        image2 = self.images2[idx]
+        image3 = self.images3[idx]
+        image4 = self.images4[idx]
+        label = self.labels[idx]
+        if self.transform:
+            image1 = self.transform(image1)
+            image2 = self.transform(image2)
+            image3 = self.transform(image3)
+            image4 = self.transform(image4)
+
+        concatenated_image = torch.cat((image1, image2, image3, image4), dim=0)
+        return concatenated_image, label
 class MobileNetV2(nn.Module):
     def __init__(self, in_channels=6, num_classes=6):
         super(MobileNetV2, self).__init__()
@@ -139,12 +170,12 @@ class CNN1D(nn.Module):
         x = self.fc3(x)
         return x
     
-class ThreeImageCNN(nn.Module):
+class multi_channel_CNN(nn.Module):
     pipe_num:int = None
     num_classed:int = None
 
     def __init__(self, num_classes=6, pipe_num=3):
-        super(ThreeImageCNN, self).__init__()
+        super(multi_channel_CNN, self).__init__()
         
         # Convolutional layers for image 1
         self.conv1_img1 = nn.Conv2d(3, 16, kernel_size=3, padding=1)
@@ -203,14 +234,15 @@ class ThreeImageCNN(nn.Module):
         # x3 = F.relu(self.conv3_img3(x3))
         # x3 = F.max_pool2d(x3, 2)
 
+
         # Image 4 processing
         if self.pipe_num == 4:
             x4 = F.relu(self.conv1_img3(x4))
             x4 = F.max_pool2d(x4, 2)
             x4 = F.relu(self.conv2_img3(x4))
             x4 = F.max_pool2d(x4, 2)
-        # x4 = F.relu(self.conv3_img3(x4))
-        # x4 = F.max_pool2d(x4, 2)
+            # x4 = F.relu(self.conv3_img3(x4))
+            # x4 = F.max_pool2d(x4, 2)
         
         # Concatenate the feature maps
         if self.pipe_num == 3:
@@ -230,13 +262,14 @@ class ThreeImageCNN(nn.Module):
 if __name__=="__main__":
     
     # Example of parallel CNN
-    model = ThreeImageCNN(num_classes=6, pipe_num=3)
+    model = multi_channel_CNN(num_classes=6, pipe_num=4)
 
     image1 = torch.randn(1, 3, 600, 600)
     image2 = torch.randn(1, 3, 600, 600)
     image3 = torch.randn(1, 3, 600, 600)
+    image4 = torch.randn(1, 3, 600, 600)
 
-    output = model((image1, image2, image3))
+    output = model((image1, image2, image3, image4))
     print(output.shape)  
 
     # CNN-1D example

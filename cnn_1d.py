@@ -18,17 +18,20 @@ from model_playground import *
 #%%
 
 # connect to databse
+
+db = "bw_mismatch_db"
+print(f"Connect to database {db}")
 connction = pymysql.connect(
     host = "localhost",
     user="root",
     port=3306,
     password="Sam512011",
-    database="bw_mismatch_db"
+    database=db
 )
 
 cursor = connction.cursor()
 
-
+print("fetch data from database...")
 """
 +-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 |  id |  Gain | BW | min_bandwidth | C_error | Circular_error | phase delay | phase | orientation_c_err | t_errX | t_errY | t_errZ | tracking_err_pitch | tracking_err_roll | tracking_err_yaw | contour_err_img_path | ori_contour_err_img_path|
@@ -36,6 +39,7 @@ cursor = connction.cursor()
 ...
 
 """
+
 # sql = "SELECT Gain FROM bw_mismatch_data;"
 # cursor.execute(sql)
 # gain = np.array([])
@@ -56,16 +60,16 @@ cursor = connction.cursor()
 # bandwidth = bandwidth.reshape((-1,len(json.loads(row[0]))))
 
 # print(bandwidth)
-sql = "SELECT min_bandwidth FROM bw_mismatch_data_new;"
-cursor.execute(sql)
-min_bandwidth = np.array([])
-data = cursor.fetchall()
-for idx, row in enumerate(data):
-    # print(row[0])
-    arr = [0]*6
-    arr[row[0]] = 1
-    min_bandwidth = np.append(min_bandwidth,[arr])
-min_bandwidth = min_bandwidth.reshape((-1, len(arr)))
+# sql = "SELECT min_bandwidth FROM bw_mismatch_data_new;"
+# cursor.execute(sql)
+# min_bandwidth = np.array([])
+# data = cursor.fetchall()
+# for idx, row in enumerate(data):
+#     # print(row[0])
+#     arr = [0]*6
+#     arr[row[0]] = 1
+#     min_bandwidth = np.append(min_bandwidth,[arr])
+# min_bandwidth = min_bandwidth.reshape((-1, len(arr)))
 
 # sql = "SELECT contour_err FROM bw_mismatch_data;"
 # cursor.execute(sql)
@@ -77,32 +81,33 @@ min_bandwidth = min_bandwidth.reshape((-1, len(arr)))
 # # print(row)
 # contour_err = contour_err.reshape((-1, len(json.loads(row[0]))))
 
-# sql = "SELECT ori_contour_err FROM bw_mismatch_data;"
-# cursor.execute(sql)
-# ori_contour_err = np.array([])
-# data = cursor.fetchall()
-# for idx, row in enumerate(data):
-#     # print(len(json.loads(row[0])))
-#     ori_contour_err = np.append(ori_contour_err, json.loads(row[0]))
-# # print(row)
-# ori_contour_err = ori_contour_err.reshape((-1, len(json.loads(row[0]))))
-
-print("fetch data from database...")
-sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM bw_mismatch_joints_data;"
+sql = "SELECT id,min_bandwidth, contour_err, circular_err, phase_delay,tracking_err_z, phase FROM bw_mismatch_data_new;"
 cursor.execute(sql)
-data = cursor.fetchall()
-
+ori_contour_err = np.array([])
 min_bandwidth = []
-tracking_err_joints = [[] for _ in range(6)]
-
-print("load data...")
+train_data = [[] for _ in range(5)]
+data = cursor.fetchall()
 for _, row in tqdm(enumerate(data), total=len(data)):
     min_bandwidth.append(row[1])
-    for i in range(6):
-        tracking_err_joints[i].append(json.loads(row[i+2]))
+    for i in range(5):
+        train_data[i].append(json.loads(row[i+2]))
 
 
-inputs = np.array(tracking_err_joints)
+# sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM bw_mismatch_joints_data;"
+# cursor.execute(sql)
+# data = cursor.fetchall()
+
+# min_bandwidth = []
+# tracking_err_joints = [[] for _ in range(6)]
+
+# print("load data...")
+# for _, row in tqdm(enumerate(data), total=len(data)):
+#     min_bandwidth.append(row[1])
+#     for i in range(6):
+#         tracking_err_joints[i].append(json.loads(row[i+2]))
+
+
+inputs = np.array(train_data)
 inputs = inputs.transpose((1,0,2))
 
 outputs = []    

@@ -170,7 +170,7 @@ top2_test_acc = []
 loss_epoch_C = []
 
 #%%
-
+early_stop_count = 15
 param_list=[]
 i=0
 for param_name,param in model.named_parameters():
@@ -180,6 +180,9 @@ for param_name,param in model.named_parameters():
 
 # Training loop
 for epoch in range(num_epochs):
+    if early_stop_count==0:
+        print(f'early stop at epoch {epoch}')
+        break
     model.train()
     running_loss = 0.0
     correct_train, total_train = 0, 0
@@ -215,6 +218,9 @@ for epoch in range(num_epochs):
         correct_train += (predicted == labels).sum().item()
         top2_correct_train += torch.sum(torch.eq(predicted_top2[:, 0], labels) | torch.eq(predicted_top2[:, 1], labels)).item()
 
+        if correct_train/total_train==1.0:
+            early_stop_count = early_stop_count-1
+
 
         train_loss_C += loss.item()
     # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {running_loss/len(train_loader)}")
@@ -248,6 +254,15 @@ for epoch in range(num_epochs):
     top2_test_acc.append(100*(top2_correct_test / total_test))
 
 # %%
+
+test_diff = np.diff(test_acc)
+for i,diff in enumerate(test_diff):
+    if diff<0 and abs(diff)<0.4: # overfitting occured
+        loss_epoch_C = loss_epoch_C[0:i-1]
+        train_acc = train_acc[0:i-1]
+        test_acc = test_acc[0:i-1]
+        top2_train_acc = top2_train_acc[0:i-1]
+        top2_test_acc = top2_test_acc[0:i-1]
 
 plt.figure()
 plt.plot(list(range(num_epochs)), loss_epoch_C) # plot your loss

@@ -7,14 +7,8 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 
 class CustomDataset(Dataset):
-    def __init__(self, images,images2,images3,images4, labels, transform=None):
-        
-        # self.images = images
-        self.images1 = images
-        self.images2 = images2
-        self.images3 = images3
-        self.images4 = images4
-
+    def __init__(self, *images, labels, transform=None):
+        self.images = images
         self.labels = labels
         self.transform = transform
 
@@ -22,20 +16,15 @@ class CustomDataset(Dataset):
         return len(self.labels)
 
     def __getitem__(self, idx):
-
-        image1 = self.images1[idx]
-        image2 = self.images2[idx]
-        image3 = self.images3[idx]
-        image4 = self.images4[idx]
+        images = [image[idx] for image in self.images]
         label = self.labels[idx]
-        if self.transform:
-            image1 = self.transform(image1)
-            image2 = self.transform(image2)
-            image3 = self.transform(image3)
-            image4 = self.transform(image4)
 
-        concatenated_image = torch.cat((image1, image2, image3, image4), dim=0)
+        if self.transform:
+            images = [self.transform(image) for image in images]
+
+        concatenated_image = torch.cat(images, dim=0)
         return concatenated_image, label
+    
 class MobileNetV2(nn.Module):
     def __init__(self, in_channels=6, num_classes=6):
         super(MobileNetV2, self).__init__()
@@ -168,6 +157,47 @@ class CNN1D(nn.Module):
         # x = self.fc1(x)
         # x = self.fc2(x)
         x = self.fc3(x)
+        return x
+class multi_channel_CNN_v2(nn.Module):
+    def __init__(self, num_classes=6, pipe_num=3, in_channels=3):
+        super(multi_channel_CNN, self).__init__()
+
+        self.pipe_num = pipe_num
+        self.num_classes = num_classes
+
+        # Define convolutional layers for each input channel
+        self.conv_layers = nn.ModuleList()
+        for i in range(pipe_num):
+            conv = nn.Sequential(
+                nn.Conv2d(in_channels, 16, kernel_size=3, padding=1),
+                nn.ReLU(),
+                nn.MaxPool2d(2),
+                nn.Conv2d(16, 32, kernel_size=3, padding=1),
+                nn.ReLU(),
+                nn.MaxPool2d(2)
+            )
+            self.conv_layers.append(conv)
+
+        # Fully connected layers after concatenation
+        self.fc1 = nn.Linear(pipe_num * 32 * 150 * 150, 128)
+        self.fc2 = nn.Linear(128, num_classes)
+        
+    def forward(self, x):
+        # Iterate through each input image channel
+        features = []
+        for i in range(self.pipe_num):
+            # Apply convolutional layers
+            conv_out = self.conv_layers[i](x[i])
+            features.append(conv_out)
+
+        # Concatenate the feature maps
+        x = torch.cat(features, dim=1)
+        x = x.view(-1, self.pipe_num * 32 * 150 * 150)  # Reshape for fully connected layer
+
+        # Fully connected layers
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+        
         return x
     
 class multi_channel_CNN(nn.Module):

@@ -11,6 +11,7 @@ import numpy as np
 import pymysql
 import time
 from tqdm import tqdm
+from datetime import datetime
 
 from model_playground import *
     
@@ -275,16 +276,26 @@ for epoch in (range(epochs)):
         top2_test_acc.append(100*(top2_correct_test / total_test))
         print(f'Testing acc : {correct_test / total_test} | Top 2 Test acc: {top2_correct_test / total_test}')
         
+# Get the current date and time
+current_datetime = datetime.now()
+
+# Extract year, month, day, hour, and minute components
+year = current_datetime.year
+month = current_datetime.month
+day = current_datetime.day
+hour = current_datetime.hour
+minute = current_datetime.minute
 
 # Save the model (optional)
-torch.save(best_model, f"best_model_acc_{best_acc}.pth")
+torch.save(best_model, f"{month}_{day}_{hour}_{minute}_best_model_acc_{best_acc}.pth")
 plt.figure()
 plt.plot(list(range(epochs)), loss_epoch_C) # plot your loss
 plt.title('Training Loss')
 plt.ylabel('loss'), plt.xlabel('epoch')
 plt.legend(['loss_C'], loc = 'upper left')
 plt.grid(True)
-plt.show()
+
+plt.savefig(f'{month}_{day}_{hour}_{minute}_loss.png')
 
 plt.figure()
 plt.plot(list(range(epochs)), train_acc)    # plot your training accuracy
@@ -293,7 +304,7 @@ plt.title('Training acc')
 plt.ylabel('acc (%)'), plt.xlabel('epoch')
 plt.legend(['training acc', 'testing acc'], loc = 'upper left')
 plt.grid(True)
-plt.show()
+plt.savefig(f'{month}_{day}_{hour}_{minute}_top1_accuracy.png')
 
 plt.figure()
 plt.plot(list(range(epochs)), top2_train_acc)    # plot your training accuracy
@@ -302,7 +313,8 @@ plt.title('Top 2 acc')
 plt.ylabel('acc (%)'), plt.xlabel('epoch')
 plt.legend(['training acc', 'val acc'], loc = 'upper left')
 plt.grid(True)
-plt.savefig('top2_accuracy.png')
+plt.savefig(f'{month}_{day}_{hour}_{minute}_top2_accuracy.png')
+# Save the model
 # Save the model
 # model.save(f'saved_model/NN/arch_{first_layer_node_number}_{second_layer_node_number}_train_acc_{training_acc[-1]:.3f}_val_acc_{val_acc[-1]:.3f}.h5')
 # %%

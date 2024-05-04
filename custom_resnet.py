@@ -9,39 +9,41 @@ from torch.optim import SGD, Adam, AdamW
 import pymysql
 import os
 import numpy as np
+from datetime import datetime
 
 from PIL import Image
 import matplotlib.pyplot as plt
 from model_playground import CustomResNet
+from model_playground import CustomDataset
 
 # Define custom dataset
-class CustomDataset(Dataset):
-    def __init__(self, images1, images2,images3,images4, labels, transform):
-        self.images1 = images1
-        self.images2 = images2
-        self.images3 = images3
-        self.images4 = images4
+# class CustomDataset(Dataset):
+#     def __init__(self, images1, images2,images3,images4, labels, transform):
+#         self.images1 = images1
+#         self.images2 = images2
+#         self.images3 = images3
+#         self.images4 = images4
 
-        self.labels = labels
-        self.transform = transform
+#         self.labels = labels
+#         self.transform = transform
 
-    def __len__(self):
-        return len(self.labels)
+#     def __len__(self):
+#         return len(self.labels)
 
-    def __getitem__(self, idx):
-        image1 = self.images1[idx]
-        image2 = self.images2[idx]
-        image3 = self.images3[idx]
-        image4 = self.images4[idx]
-        label = self.labels[idx]
-        if self.transform:
-            image1 = self.transform(image1)
-            image2 = self.transform(image2)
-            image3 = self.transform(image3)
-            image4 = self.transform(image4)
+#     def __getitem__(self, idx):
+#         image1 = self.images1[idx]
+#         image2 = self.images2[idx]
+#         image3 = self.images3[idx]
+#         image4 = self.images4[idx]
+#         label = self.labels[idx]
+#         if self.transform:
+#             image1 = self.transform(image1)
+#             image2 = self.transform(image2)
+#             image3 = self.transform(image3)
+#             image4 = self.transform(image4)
 
-        concatenated_image = torch.cat((image1, image2, image3, image4), dim=0)
-        return concatenated_image, label
+#         concatenated_image = torch.cat((image1, image2, image3, image4), dim=0)
+#         return concatenated_image, label
 
 def data_load(data_path):
     # connect to databse
@@ -119,10 +121,10 @@ def data_split(data_path, split_ratio=0.8, batch_size=32, transform=None):
     test_images4 = [load_and_preprocess(path) for path in test_images4]
 
     # Create datasets and dataloaders
-    train_dataset = CustomDataset((train_images1, train_images2, train_images3, train_images4), train_labels, transform=transform)
+    train_dataset = CustomDataset([train_images1, train_images2, train_images3, train_images4], labels=train_labels, transform=transform)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
-    test_dataset = CustomDataset((test_images1, test_images2,test_images3,test_images4), test_labels, transform=transform)
+    test_dataset = CustomDataset([test_images1, test_images2,test_images3,test_images4], labels=test_labels, transform=transform)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     return train_loader, test_loader
@@ -139,7 +141,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 # Define training parameters
 learning_rate = 0.001
-num_epochs = 550
+num_epochs = 500
 batch_size = 64
 
 
@@ -254,11 +256,12 @@ for epoch in range(num_epochs):
         correct_train += (predicted == labels).sum().item()
         top2_correct_train += torch.sum(torch.eq(predicted_top2[:, 0], labels) | torch.eq(predicted_top2[:, 1], labels)).item()
 
-        if correct_train/total_train==1.0:
-            early_stop_count = early_stop_count-1
-
-
         train_loss_C += loss.item()
+
+    if correct_train/total_train==1.0:
+        print(f'acc {correct_train/total_train} already high')
+        early_stop_count = early_stop_count-1
+        
     # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {running_loss/len(train_loader)}")
     print(f'Training epoch: {epoch + 1}/{num_epochs} / loss_C: {train_loss_C/len(train_loader)} | acc: {correct_train / total_train} | top 2 acc: {top2_correct_train/total_train}')
 
@@ -298,16 +301,30 @@ for i,diff in enumerate(test_diff):
         test_acc = test_acc[0:i-1]
         top2_train_acc = top2_train_acc[0:i-1]
         top2_test_acc = top2_test_acc[0:i-1]
+        num_epochs = i-1
         
 
 
+# Get the current date and time
+current_datetime = datetime.now()
+
+# Extract year, month, day, hour, and minute components
+year = current_datetime.year
+month = current_datetime.month
+day = current_datetime.day
+hour = current_datetime.hour
+minute = current_datetime.minute
+
+
+# Save the model (optional)
 plt.figure()
 plt.plot(list(range(num_epochs)), loss_epoch_C) # plot your loss
 plt.title('Training Loss')
 plt.ylabel('loss'), plt.xlabel('epoch')
 plt.legend(['loss_C'], loc = 'upper left')
 plt.grid(True)
-plt.show()
+
+plt.savefig(f'resNet_{month}_{day}_{hour}_{minute}_loss.png')
 
 plt.figure()
 plt.plot(list(range(num_epochs)), train_acc)    # plot your training accuracy
@@ -316,7 +333,7 @@ plt.title('Training acc')
 plt.ylabel('acc (%)'), plt.xlabel('epoch')
 plt.legend(['training acc', 'testing acc'], loc = 'upper left')
 plt.grid(True)
-plt.show()
+plt.savefig(f'resNet_{month}_{day}_{hour}_{minute}_top1_accuracy.png')
 
 plt.figure()
 plt.plot(list(range(num_epochs)), top2_train_acc)    # plot your training accuracy
@@ -325,5 +342,5 @@ plt.title('Top 2 acc')
 plt.ylabel('acc (%)'), plt.xlabel('epoch')
 plt.legend(['training acc', 'val acc'], loc = 'upper left')
 plt.grid(True)
-plt.show()
+plt.savefig(f'resNet_{month}_{day}_{hour}_{minute}_top2_accuracy.png')
 # %%

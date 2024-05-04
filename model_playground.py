@@ -6,8 +6,9 @@ from torchvision import transforms
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 
+
 class CustomDataset(Dataset):
-    def __init__(self, *images, labels, transform=None):
+    def __init__(self, images, labels, transform=None):
         self.images = images
         self.labels = labels
         self.transform = transform
@@ -160,7 +161,7 @@ class CNN1D(nn.Module):
         return x
 class multi_channel_CNN_v2(nn.Module):
     def __init__(self, num_classes=6, pipe_num=3, in_channels=3):
-        super(multi_channel_CNN, self).__init__()
+        super(multi_channel_CNN_v2, self).__init__()
 
         self.pipe_num = pipe_num
         self.num_classes = num_classes
@@ -292,14 +293,17 @@ class multi_channel_CNN(nn.Module):
 if __name__=="__main__":
     
     # Example of parallel CNN
-    model = multi_channel_CNN(num_classes=6, pipe_num=4)
+    model = multi_channel_CNN_v2(num_classes=6, pipe_num=4)
 
     image1 = torch.randn(1, 3, 600, 600)
     image2 = torch.randn(1, 3, 600, 600)
     image3 = torch.randn(1, 3, 600, 600)
     image4 = torch.randn(1, 3, 600, 600)
 
-    output = model((image1, image2, image3, image4))
+    concatenated_image = torch.cat([image1, image2, image3, image4], dim=0)
+    print(type(concatenated_image))
+
+    output = model((image1, image2, image3, image4),)
     print(output.shape)  
 
     # CNN-1D example
@@ -308,5 +312,7 @@ if __name__=="__main__":
     input_tensor = torch.randn((1, 5, 2885))  # Batch size 1, input dimension 5, sequence length 10
     output = model(input_tensor)
     print(output.shape)  
+
+    
 
 

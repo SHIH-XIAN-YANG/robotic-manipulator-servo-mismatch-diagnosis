@@ -15,7 +15,8 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from model_playground import CustomResNet
 from model_playground import CustomDataset
-
+from sklearn.metrics import precision_score, recall_score, f1_score
+from tqdm import tqdm
 # Define custom dataset
 # class CustomDataset(Dataset):
 #     def __init__(self, images1, images2,images3,images4, labels, transform):
@@ -141,7 +142,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 # Define training parameters
 learning_rate = 0.001
-num_epochs = 500
+num_epochs = 2
 batch_size = 64
 
 
@@ -155,7 +156,6 @@ data_path = 'C:\\Users\\Samuel\\Desktop\\mismatch_dataset\\'
 # Load data
 train_loader, test_loader = data_split(data_path,batch_size=batch_size, transform=transform)
 
-progress_bar = []
 total_samples = len(train_loader)
 n_iterations = np.ceil(total_samples / batch_size)
 
@@ -165,6 +165,8 @@ test_acc = []
 top2_train_acc = []
 top2_test_acc = []
 loss_epoch_C = []
+train_precision_list, train_recall_list, train_f1_list = [], [], []
+test_precision_list, test_recall_list, test_f1_list = [], [], []
 
 #%%
 
@@ -193,6 +195,9 @@ for epoch in range(num_epochs):
     correct_test, total_test = 0, 0
     top2_correct_train, top2_correct_test = 0,0
     train_loss_C = 0.0
+
+    all_train_labels = []
+    all_train_predictions = []
 
     if epoch == 20:
         learning_rate=0.0003
@@ -231,14 +236,7 @@ for epoch in range(num_epochs):
     #optimizer = Adam(parameter, lr=lr,eps=1e-08)
     optimizer_C=AdamW(parameter, lr=learning_rate, amsgrad=True)
 
-    for i, (inputs, labels) in enumerate(train_loader):
-        if (i+1) % (total_samples/100) == 0:
-            progress_bar.append("=")
-            print(f' ||epoch {epoch+1}/{num_epochs}, step {i+1}/{total_samples}',end='\r')
-
-            #print(f'epoch {epoch+1}/{epochs}|',end="")
-            for idx, progress in enumerate(progress_bar):
-                print(progress,end="")
+    for i, (inputs, labels) in tqdm(enumerate(train_loader)):
 
         inputs, labels = inputs.to(device), labels.to(device)
         optimizer_C.zero_grad()
@@ -258,21 +256,25 @@ for epoch in range(num_epochs):
 
         train_loss_C += loss.item()
 
+        all_train_labels.extend(labels.cpu().numpy())
+        all_train_predictions.extend(predicted.cpu().numpy())
+
     if correct_train/total_train==1.0:
         print(f'acc {correct_train/total_train} already high')
         early_stop_count = early_stop_count-1
         
     # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {running_loss/len(train_loader)}")
     print(f'Training epoch: {epoch + 1}/{num_epochs} / loss_C: {train_loss_C/len(train_loader)} | acc: {correct_train / total_train} | top 2 acc: {top2_correct_train/total_train}')
-
-    progress_bar = []
                     
 
     # Testing loop
     model.eval()
+
+    all_test_labels = []
+    all_test_predictions = []
   
     with torch.no_grad():
-        for i, (inputs, labels) in enumerate(test_loader):
+        for i, (inputs, labels) in enumerate(tqdm(test_loader)):
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
             _, predicted = torch.max(outputs.data, 1)
@@ -281,8 +283,21 @@ for epoch in range(num_epochs):
             correct_test += (predicted == labels).sum().item()
             top2_correct_test += torch.sum(torch.eq(predicted_top2[:, 0], labels) | torch.eq(predicted_top2[:, 1], labels)).item()
 
+            all_test_labels.extend(labels.cpu().numpy())
+            all_test_predictions.extend(predicted.cpu().numpy())
 
-    print(f'Testing acc : {correct_test / total_test} | Top 2 Test acc: {top2_correct_test / total_test}')
+
+    train_precision = precision_score(all_train_labels, all_train_predictions, average='macro', zero_division=0)
+    train_recall = recall_score(all_train_labels, all_train_predictions, average='macro', zero_division=0)
+    train_f1 = f1_score(all_train_labels, all_train_predictions, average='macro', zero_division=0)
+
+    test_precision = precision_score(all_test_labels, all_test_predictions, average='macro', zero_division=0)
+    test_recall = recall_score(all_test_labels, all_test_predictions, average='macro', zero_division=0)
+    test_f1 = f1_score(all_test_labels, all_test_predictions, average='macro', zero_division=0)
+
+    print(f'Training Precision: {train_precision} | Training Recall: {train_recall} | Training F1-Score: {train_f1}')
+    print(f'Testing Precision: {test_precision} | Testing Recall: {test_recall} | Testing F1-Score: {test_f1}')
+    # print(f'Testing acc : {correct_test / total_test} | Top 2 Test acc: {top2_correct_test / total_test}')
 
 
     train_acc.append(100 * (correct_train / total_train)) # training accuracy
@@ -290,6 +305,14 @@ for epoch in range(num_epochs):
     loss_epoch_C.append((train_loss_C / len(train_loader)))            # loss 
     top2_train_acc.append(100*(top2_correct_train/total_train)) # training accuracy
     top2_test_acc.append(100*(top2_correct_test / total_test))
+
+    train_precision_list.append(train_precision)
+    train_recall_list.append(train_recall)
+    train_f1_list.append(train_f1)
+
+    test_precision_list.append(test_precision)
+    test_recall_list.append(test_recall)
+    test_f1_list.append(test_f1)
 
 # %%
 
@@ -343,4 +366,14 @@ plt.ylabel('acc (%)'), plt.xlabel('epoch')
 plt.legend(['training acc', 'val acc'], loc = 'upper left')
 plt.grid(True)
 plt.savefig(f'resNet_{month}_{day}_{hour}_{minute}_top2_accuracy.png')
-# %%
+
+plt.figure()
+plt.plot(list(range(num_epochs)), train_f1_list, 'b', label='Training F1 Score')
+plt.plot(list(range(num_epochs)), test_f1_list, 'r', label='Testing F1 Score')
+plt.xlabel('Epochs')
+plt.ylabel('F1 Score')
+plt.title('F1 Score Over Epochs')
+plt.legend()
+plt.grid(True)
+plt.savefig(f'resNet_{month}_{day}_{hour}_{minute}_F1_score.png')
+plt.show()

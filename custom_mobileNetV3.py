@@ -16,6 +16,8 @@ from datetime import datetime
 from PIL import Image
 import matplotlib.pyplot as plt
 from model_playground import MobileNetV2, CustomDataset
+from sklearn.metrics import precision_score, recall_score, f1_score
+from tqdm import tqdm
 
 # class MobileNetV2(nn.Module):
 #     def __init__(self, in_channels=6, num_classes=6):
@@ -193,7 +195,6 @@ data_path = 'C:\\Users\\Samuel\\Desktop\\mismatch_dataset\\'
 # Load data
 train_loader, test_loader = data_split(data_path,batch_size=batch_size, transform=transform)
 
-progress_bar = []
 total_samples = len(train_loader)
 n_iterations = np.ceil(total_samples / batch_size)
 
@@ -203,6 +204,9 @@ test_acc = []
 top2_train_acc = []
 top2_test_acc = []
 loss_epoch_C = []
+train_precision_list, train_recall_list, train_f1_list = [], [], []
+test_precision_list, test_recall_list, test_f1_list = [], [], []
+
 
 #%%
 
@@ -225,8 +229,10 @@ for epoch in range(num_epochs):
     correct_test, total_test = 0, 0
     top2_correct_train, top2_correct_test = 0,0
     train_loss_C = 0.0
-    
 
+    all_train_labels = []
+    all_train_predictions = []
+    
     if epoch == 20:
         learning_rate=0.0005
         for param_name,param in model.named_parameters():
@@ -264,14 +270,7 @@ for epoch in range(num_epochs):
     #optimizer = Adam(parameter, lr=lr,eps=1e-08)
     optimizer_C=AdamW(parameter, lr=learning_rate, amsgrad=True)
 
-    for i, (inputs, labels) in enumerate(train_loader):
-        if (i+1) % (total_samples/100) == 0:
-            progress_bar.append("=")
-            print(f' ||epoch {epoch+1}/{num_epochs}, step {i+1}/{total_samples}',end='\r')
-
-            #print(f'epoch {epoch+1}/{epochs}|',end="")
-            for idx, progress in enumerate(progress_bar):
-                print(progress,end="")
+    for i, (inputs, labels) in enumerate(tqdm(train_loader)):
 
         inputs, labels = inputs.to(device), labels.to(device)
         optimizer_C.zero_grad()
@@ -293,14 +292,19 @@ for epoch in range(num_epochs):
         top2_correct_train += torch.sum(torch.eq(predicted_top2[:, 0], labels) | torch.eq(predicted_top2[:, 1], labels)).item()
 
         train_loss_C += loss.item()
+
+        all_train_labels.extend(labels.cpu().numpy())
+        all_train_predictions.extend(predicted.cpu().numpy())
+
     # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {running_loss/len(train_loader)}")
     print(f'Training epoch: {epoch + 1}/{num_epochs} / loss_C: {train_loss_C/len(train_loader)} | acc: {correct_train / total_train} | top 2 acc: {top2_correct_train/total_train}')
-
-    progress_bar = []
                     
 
     # Testing loop
     model.eval()
+
+    all_test_labels = []
+    all_test_predictions = []
   
     with torch.no_grad():
         for i, (inputs, labels) in enumerate(test_loader):
@@ -312,14 +316,34 @@ for epoch in range(num_epochs):
             total_test += labels.size(0)
             correct_test += (predicted == labels).sum().item()
             top2_correct_test += torch.sum(torch.eq(predicted_top2[:, 0], labels) | torch.eq(predicted_top2[:, 1], labels)).item()
+    
+    train_precision = precision_score(all_train_labels, all_train_predictions, average='macro', zero_division=0)
+    train_recall = recall_score(all_train_labels, all_train_predictions, average='macro', zero_division=0)
+    train_f1 = f1_score(all_train_labels, all_train_predictions, average='macro', zero_division=0)
 
-    print(f'Testing acc : {correct_test / total_test} | Top 2 Test acc: {top2_correct_test / total_test}')
+    test_precision = precision_score(all_test_labels, all_test_predictions, average='macro', zero_division=0)
+    test_recall = recall_score(all_test_labels, all_test_predictions, average='macro', zero_division=0)
+    test_f1 = f1_score(all_test_labels, all_test_predictions, average='macro', zero_division=0)
+
+    print(f'Training Precision: {train_precision} | Training Recall: {train_recall} | Training F1-Score: {train_f1}')
+    print(f'Testing Precision: {test_precision} | Testing Recall: {test_recall} | Testing F1-Score: {test_f1}')
+    # print(f'Testing acc : {correct_test / total_test} | Top 2 Test acc: {top2_correct_test / total_test}')
+
+    # print(f'Testing acc : {correct_test / total_test} | Top 2 Test acc: {top2_correct_test / total_test}')
 
     train_acc.append(100 * (correct_train / total_train)) # training accuracy
     test_acc.append(100 * (correct_test / total_test))    # testing accuracy
     loss_epoch_C.append((train_loss_C / len(train_loader)))            # loss 
     top2_train_acc.append(100*(top2_correct_train/total_train)) # training accuracy
     top2_test_acc.append(100*(top2_correct_test / total_test))
+
+    train_precision_list.append(train_precision)
+    train_recall_list.append(train_recall)
+    train_f1_list.append(train_f1)
+
+    test_precision_list.append(test_precision)
+    test_recall_list.append(test_recall)
+    test_f1_list.append(test_f1)
 
 # %%
 
@@ -361,4 +385,14 @@ plt.ylabel('acc (%)'), plt.xlabel('epoch')
 plt.legend(['training acc', 'val acc'], loc = 'upper left')
 plt.grid(True)
 plt.savefig(f'mobileNet_{month}_{day}_{hour}_{minute}_top2_accuracy.png')
-# %%
+
+plt.figure()
+plt.plot(list(range(num_epochs)), train_f1_list, 'b', label='Training F1 Score')
+plt.plot(list(range(num_epochs)), test_f1_list, 'r', label='Testing F1 Score')
+plt.xlabel('Epochs')
+plt.ylabel('F1 Score')
+plt.title('F1 Score Over Epochs')
+plt.legend()
+plt.grid(True)
+plt.savefig(f'mobileNet_{month}_{day}_{hour}_{minute}_F1_score.png')
+plt.show()

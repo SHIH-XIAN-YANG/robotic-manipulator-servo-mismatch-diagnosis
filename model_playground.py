@@ -7,6 +7,7 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 
 
+
 class CustomDataset(Dataset):
     def __init__(self, images, labels, transform=None):
         self.images = images
@@ -137,7 +138,7 @@ class CNN1D(nn.Module):
         self.flatten = nn.Flatten()
         self.fc1 = nn.Linear(83968, 1024)
         self.fc2 = nn.Linear(1024, 512)
-        self.fc3 = nn.Linear(23040, output_dim)
+        self.fc3 = nn.Linear(84544, output_dim)
 
     def forward(self, x):
         x = self.pool(self.relu(self.batch_norm1(self.conv1(x))))
@@ -290,6 +291,38 @@ class multi_channel_CNN(nn.Module):
         
         return x
 
+class LSTMClassifier(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, num_layers=2, dropout=0.5):
+        super(LSTMClassifier, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+
+        # LSTM layers
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=dropout)
+
+        # Additional fully connected layers
+        self.fc1 = nn.Linear(hidden_size, hidden_size // 2)
+        self.fc2 = nn.Linear(hidden_size // 2, output_size)
+        
+        # Activation and dropout
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(dropout)
+    
+    def forward(self, x):
+        h_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)  # hidden state
+        c_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)  # cell state
+        
+        out, _ = self.lstm(x, (h_0, c_0))
+        out = out[:, -1, :]  # take the last output
+
+        # Fully connected layers with activation and dropout
+        out = self.fc1(out)
+        out = self.relu(out)
+        out = self.dropout(out)
+        out = self.fc2(out)
+        
+        return out
+
 if __name__=="__main__":
     
     # Example of parallel CNN
@@ -307,9 +340,9 @@ if __name__=="__main__":
     print(output.shape)  
 
     # CNN-1D example
-    model = CNN1D(input_dim=5, output_dim=6)
+    model = CNN1D(input_dim=6, output_dim=6)
 
-    input_tensor = torch.randn((1, 5, 2885))  # Batch size 1, input dimension 5, sequence length 10
+    input_tensor = torch.randn((1, 6, 10568))  # Batch size 1, input dimension 5, sequence length 10
     output = model(input_tensor)
     print(output.shape)  
 

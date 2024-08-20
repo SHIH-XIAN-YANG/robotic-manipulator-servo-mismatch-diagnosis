@@ -13,7 +13,9 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 from model_playground import multi_channel_CNN
+from sklearn.metrics import precision_score, recall_score, f1_score
 from tqdm import tqdm
+from datetime import datetime
 
 # Define custom dataset
 class CustomDataset(Dataset):
@@ -158,7 +160,6 @@ data_path = 'C:\\Users\\Samuel\\Desktop\\mismatch_dataset\\'
 # Load data
 train_loader, test_loader = data_split(data_path,batch_size=batch_size, transform=transform)
 
-progress_bar = []
 total_samples = len(train_loader)
 n_iterations = np.ceil(total_samples / batch_size)
 
@@ -168,6 +169,9 @@ test_acc = []
 top2_train_acc = []
 top2_test_acc = []
 loss_epoch_C = []
+
+train_precision_list, train_recall_list, train_f1_list = [], [], []
+test_precision_list, test_recall_list, test_f1_list = [], [], []
 
 #%%
 early_stop_count = 15
@@ -190,15 +194,11 @@ for epoch in range(num_epochs):
     top2_correct_train, top2_correct_test = 0,0
     train_loss_C = 0.0
 
+    all_train_labels = []
+    all_train_predictions = []
 
-    for i, (inputs, labels) in enumerate(train_loader):
-        if (i+1) % (total_samples/100) == 0:
-            progress_bar.append("=")
-            print(f' ||epoch {epoch+1}/{num_epochs}, step {i+1}/{total_samples}',end='\r')
-
-            #print(f'epoch {epoch+1}/{epochs}|',end="")
-            for idx, progress in enumerate(progress_bar):
-                print(progress,end="")
+    for i, (inputs, labels) in enumerate(tqdm(train_loader)):
+        
         inputs = [input.to(device) for input in inputs]
         labels = labels.to(device)
         optimizer.zero_grad()
@@ -218,19 +218,23 @@ for epoch in range(num_epochs):
         correct_train += (predicted == labels).sum().item()
         top2_correct_train += torch.sum(torch.eq(predicted_top2[:, 0], labels) | torch.eq(predicted_top2[:, 1], labels)).item()
 
-        if correct_train/total_train==1.0:
-            early_stop_count = early_stop_count-1
-
-
         train_loss_C += loss.item()
+        
+        all_train_labels.extend(labels.cpu().numpy())
+        all_train_predictions.extend(predicted.cpu().numpy())
+
+    if correct_train/total_train==1.0:
+        early_stop_count = early_stop_count-1
     # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {running_loss/len(train_loader)}")
     print(f'Training epoch: {epoch + 1}/{num_epochs} / loss_C: {train_loss_C/len(train_loader)} | acc: {correct_train / total_train} | top 2 acc: {top2_correct_train/total_train}')
 
     progress_bar = []
                     
-
     # Testing loop
     model.eval()
+
+    all_test_labels = []
+    all_test_predictions = []
   
     with torch.no_grad():
         for i, (inputs, labels) in enumerate(test_loader):
@@ -243,8 +247,20 @@ for epoch in range(num_epochs):
             correct_test += (predicted == labels).sum().item()
             top2_correct_test += torch.sum(torch.eq(predicted_top2[:, 0], labels) | torch.eq(predicted_top2[:, 1], labels)).item()
 
+            all_test_labels.extend(labels.cpu().numpy())
+            all_test_predictions.extend(predicted.cpu().numpy())
 
-    print(f'Testing acc : {correct_test / total_test} | Top 2 Test acc: {top2_correct_test / total_test}')
+    train_precision = precision_score(all_train_labels, all_train_predictions, average='macro', zero_division=0)
+    train_recall = recall_score(all_train_labels, all_train_predictions, average='macro', zero_division=0)
+    train_f1 = f1_score(all_train_labels, all_train_predictions, average='macro', zero_division=0)
+
+    test_precision = precision_score(all_test_labels, all_test_predictions, average='macro', zero_division=0)
+    test_recall = recall_score(all_test_labels, all_test_predictions, average='macro', zero_division=0)
+    test_f1 = f1_score(all_test_labels, all_test_predictions, average='macro', zero_division=0)
+
+    print(f'Training Precision: {train_precision} | Training Recall: {train_recall} | Training F1-Score: {train_f1}')
+    print(f'Testing Precision: {test_precision} | Testing Recall: {test_recall} | Testing F1-Score: {test_f1}')
+    # print(f'Testing acc : {correct_test / total_test} | Top 2 Test acc: {top2_correct_test / total_test}')
 
 
     train_acc.append(100 * (correct_train / total_train)) # training accuracy
@@ -252,6 +268,14 @@ for epoch in range(num_epochs):
     loss_epoch_C.append((train_loss_C / len(train_loader)))            # loss 
     top2_train_acc.append(100*(top2_correct_train/total_train)) # training accuracy
     top2_test_acc.append(100*(top2_correct_test / total_test))
+
+    train_precision_list.append(train_precision)
+    train_recall_list.append(train_recall)
+    train_f1_list.append(train_f1)
+
+    test_precision_list.append(test_precision)
+    test_recall_list.append(test_recall)
+    test_f1_list.append(test_f1)
 
 # %%
 
@@ -264,14 +288,23 @@ for i,diff in enumerate(test_diff):
         top2_train_acc = top2_train_acc[0:i-1]
         top2_test_acc = top2_test_acc[0:i-1]
 
+# Get the current date and time
+current_datetime = datetime.now()
+
+# Extract year, month, day, hour, and minute components
+year = current_datetime.year
+month = current_datetime.month
+day = current_datetime.day
+hour = current_datetime.hour
+minute = current_datetime.minute
+
 plt.figure()
 plt.plot(list(range(num_epochs)), loss_epoch_C) # plot your loss
 plt.title('Training Loss')
 plt.ylabel('loss'), plt.xlabel('epoch')
 plt.legend(['loss_C'], loc = 'upper left')
 plt.grid(True)
-plt.show()
-plt.savefig('parallel_cnn_loss.png')
+plt.savefig(f'parallel_cnn_{month}_{day}_{hour}_{minute}_loss.png')
 
 plt.figure()
 plt.plot(list(range(num_epochs)), train_acc)    # plot your training accuracy
@@ -280,8 +313,7 @@ plt.title('Training acc')
 plt.ylabel('acc (%)'), plt.xlabel('epoch')
 plt.legend(['training acc', 'testing acc'], loc = 'upper left')
 plt.grid(True)
-plt.show()
-plt.savefig('parallel_cnn_acc.png')
+plt.savefig(f'parallel_cnn_{month}_{day}_{hour}_{minute}_acc.png')
 
 plt.figure()
 plt.plot(list(range(num_epochs)), top2_train_acc)    # plot your training accuracy
@@ -290,6 +322,15 @@ plt.title('Top 2 acc')
 plt.ylabel('acc (%)'), plt.xlabel('epoch')
 plt.legend(['training acc', 'val acc'], loc = 'upper left')
 plt.grid(True)
+plt.savefig(f'parallel_cnn_{month}_{day}_{hour}_{minute}_top2_acc.png')
+
+plt.figure()
+plt.plot(list(range(num_epochs)), train_f1_list, 'b', label='Training F1 Score')
+plt.plot(list(range(num_epochs)), test_f1_list, 'r', label='Testing F1 Score')
+plt.xlabel('Epochs')
+plt.ylabel('F1 Score')
+plt.title('F1 Score Over Epochs')
+plt.legend()
+plt.grid(True)
+plt.savefig(f'parallel_cnn{month}_{day}_{hour}_{minute}_F1_score.png')
 plt.show()
-plt.savefig('parallel_cnn_top2_acc.png')
-# %%

@@ -82,34 +82,35 @@ print("fetch data from database...")
 # # print(row)
 # contour_err = contour_err.reshape((-1, len(json.loads(row[0]))))
 
-sql = "SELECT id,min_bandwidth, contour_err, circular_err, phase_delay,tracking_err_z, phase FROM bw_mismatch_data_new;"
-cursor.execute(sql)
-ori_contour_err = np.array([])
-min_bandwidth = []
-train_data = [[] for _ in range(5)]
-data = cursor.fetchall()
-for _, row in tqdm(enumerate(data), total=len(data)):
-    min_bandwidth.append(row[1])
-    for i in range(5):
-        train_data[i].append(json.loads(row[i+2]))
-
-
-# sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM bw_mismatch_joints_data;"
+# sql = "SELECT id,min_bandwidth, contour_err, circular_err, phase_delay,tracking_err_z, phase FROM bw_mismatch_data_new;"
 # cursor.execute(sql)
-# data = cursor.fetchall()
-
+# ori_contour_err = np.array([])
 # min_bandwidth = []
-# tracking_err_joints = [[] for _ in range(6)]
-
-# print("load data...")
+# train_data = [[] for _ in range(5)]
+# data = cursor.fetchall()
 # for _, row in tqdm(enumerate(data), total=len(data)):
 #     min_bandwidth.append(row[1])
-#     for i in range(6):
-#         tracking_err_joints[i].append(json.loads(row[i+2]))
+#     for i in range(5):
+#         train_data[i].append(json.loads(row[i+2]))
 
+
+
+sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM bw_mismatch_joints_data;"
+cursor.execute(sql)
+data = cursor.fetchall()
+
+min_bandwidth = []
+train_data = [[] for _ in range(6)]
+
+print("load data...")
+for _, row in tqdm(enumerate(data), total=len(data)):
+    min_bandwidth.append(row[1])
+    for i in range(6):
+        train_data[i].append(json.loads(row[i+2]))
 
 inputs = np.array(train_data)
 inputs = inputs.transpose((1,0,2))
+print('train data shape:', inputs.shape)
 
 outputs = []    
 for i, bw in enumerate(min_bandwidth):
@@ -118,12 +119,7 @@ for i, bw in enumerate(min_bandwidth):
     outputs.append(arr)
 outputs = np.array(outputs)
 
-
-"""
-input data: contour_err
-output(predict result): min_bandwidth
-
-"""
+print('output data shape: ',outputs.shape)
 
 # contour_err = np.stack((contour_err, ori_contour_err), axis=1)
 
@@ -275,7 +271,60 @@ for epoch in (range(epochs)):
         top2_train_acc.append(100*(top2_correct_train/total_train)) # training accuracy
         top2_test_acc.append(100*(top2_correct_test / total_test))
         print(f'Testing acc : {correct_test / total_test} | Top 2 Test acc: {top2_correct_test / total_test}')
-        
+
+# After training, evaluate on test set and calculate metrics
+all_preds = []
+all_targets = []
+model.load_state_dict(best_model)
+model.eval()  # Set the model to evaluation mode
+with torch.no_grad():
+    for data, target in test_dataloader:
+        data, target = data.to(device), target.to(device)
+        output = model(data)
+        predicted = torch.argmax(output.data, dim=1)
+        all_preds.extend(predicted.cpu().numpy())
+        all_targets.extend(torch.argmax(target, dim=1).cpu().numpy())
+
+# Confusion Matrix
+conf_matrix = confusion_matrix(all_targets, all_preds)
+plt.figure(figsize=(8, 6))
+sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', cbar=False)
+plt.xlabel('Predicted Label')
+plt.ylabel('True Label')
+plt.title('Confusion Matrix')
+plt.show()
+
+# Classification Report
+print("Classification Report:\n", classification_report(all_targets, all_preds))
+
+# ROC-AUC Score and ROC Curve
+all_preds_proba = []
+for data, target in test_dataloader:
+    data, target = data.to(device), target.to(device)
+    output = model(data)
+    all_preds_proba.extend(output.data.cpu().numpy())
+
+y_test_labels = np.array(all_targets)
+y_score = np.array(all_preds_proba)
+
+# One-vs-Rest ROC curve
+fpr, tpr, roc_auc = dict(), dict(), dict()
+for i in range(output_shape):
+    fpr[i], tpr[i], _ = roc_curve(y_test_labels == i, y_score[:, i])
+    roc_auc[i] = auc(fpr[i], tpr[i])
+
+plt.figure()
+for i in range(output_shape):
+    plt.plot(fpr[i], tpr[i], label=f'ROC curve (area = {roc_auc[i]:.2f}) for class {i}')
+plt.plot([0, 1], [0, 1], color='navy', linestyle='--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic')
+plt.legend(loc="lower right")
+plt.show()
+
 # Get the current date and time
 current_datetime = datetime.now()
 
@@ -315,8 +364,6 @@ plt.legend(['training acc', 'val acc'], loc = 'upper left')
 plt.grid(True)
 plt.savefig(f'{month}_{day}_{hour}_{minute}_top2_accuracy.png')
 # Save the model
-# Save the model
-# model.save(f'saved_model/NN/arch_{first_layer_node_number}_{second_layer_node_number}_train_acc_{training_acc[-1]:.3f}_val_acc_{val_acc[-1]:.3f}.h5')
 # %%
 
 cursor.close()

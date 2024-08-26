@@ -5,7 +5,7 @@ from torchvision import models
 from torchvision import transforms
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
-
+from torchsummary import summary
 
 
 class CustomDataset(Dataset):
@@ -109,7 +109,7 @@ class UltraLightCNN(nn.Module):
         return x
     
 class CNN1D(nn.Module):
-    def __init__(self, input_dim=5, output_dim=6):
+    def __init__(self, input_dim=6, output_dim=6):
         super(CNN1D, self).__init__()
         self.conv1 = nn.Conv1d(in_channels=input_dim, out_channels=16, kernel_size=3, padding=1)
         self.conv2 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=3, padding=1)
@@ -322,7 +322,112 @@ class LSTMClassifier(nn.Module):
         out = self.fc2(out)
         
         return out
+    
+# Define the RNN Classifier model
+class RNNClassifier(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, num_layers=1):
+        super(RNNClassifier, self).__init__()
+        self.num_layers = num_layers
+        self.hidden_size = hidden_size
+        self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, output_size)
 
+    
+    def forward(self, x):
+        h_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+        
+        out, _ = self.rnn(x, h_0)
+        out = out[:, -1, :]  # Take the output from the last time step
+        out = self.fc(out)
+        return out
+
+class CNNLSTMClassifier(nn.Module):
+    def __init__(self, input_size, num_classes=6, cnn_channels=8, kernel_size=3, lstm_hidden_size=128, lstm_layers=1, dropout=0.5):
+        super(CNNLSTMClassifier, self).__init__()
+
+        # 1D-CNN layers
+        self.cnn = nn.Sequential(
+            nn.Conv1d(in_channels=input_size, out_channels=cnn_channels, kernel_size=kernel_size, padding=kernel_size//2),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2),
+            nn.Conv1d(in_channels=cnn_channels, out_channels=cnn_channels * 2, kernel_size=kernel_size, padding=kernel_size//2),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2),
+            nn.Dropout(dropout),
+            nn.Conv1d(in_channels=cnn_channels*2, out_channels=cnn_channels * 4, kernel_size=kernel_size, padding=kernel_size//2),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2),
+            nn.Dropout(dropout)
+        )
+
+        # LSTM layers
+        self.lstm = nn.LSTM(input_size=cnn_channels*4, hidden_size=lstm_hidden_size, num_layers=lstm_layers, batch_first=True, dropout=0)
+
+        # Fully connected layers
+        self.fc = nn.Sequential(
+            nn.Linear(lstm_hidden_size, lstm_hidden_size // 2),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(lstm_hidden_size // 2, num_classes)
+        )
+    
+    def forward(self, x):
+        # CNN expects input in (batch_size, channels, sequence_length)
+        # x = x.transpose(1, 2)
+        cnn_out = self.cnn(x)
+
+        # LSTM expects input in (batch_size, sequence_length, input_size)
+        lstm_in = cnn_out.transpose(1, 2)
+        h_0 = torch.zeros(self.lstm.num_layers, lstm_in.size(0), self.lstm.hidden_size).to(x.device)  # hidden state
+        c_0 = torch.zeros(self.lstm.num_layers, lstm_in.size(0), self.lstm.hidden_size).to(x.device)  # cell state
+
+        lstm_out, _ = self.lstm(lstm_in, (h_0, c_0))
+        lstm_out = lstm_out[:, -1, :]  # Take the last output from LSTM
+
+        out = self.fc(lstm_out)
+        return out
+    
+class TransformerClassifier(nn.Module):
+    def __init__(self, input_dim, seq_len, num_classes, d_model=64, nhead=8, num_encoder_layers=4, dim_feedforward=128, dropout=0.1):
+        super(TransformerClassifier, self).__init__()
+        
+        # Positional encoding for the sequence
+        self.pos_encoder = nn.Parameter(torch.zeros(1, seq_len, d_model))
+        
+        # Linear transformation to match input_dim to d_model
+        self.input_fc = nn.Linear(input_dim, d_model)
+        
+        # Transformer encoder
+        self.transformer_encoder = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout),
+            num_layers=num_encoder_layers
+        )
+        
+        # Final classifier head
+        self.fc_out = nn.Linear(d_model, num_classes)
+        
+    def forward(self, x):
+        # x shape: (batch_size, seq_len, input_dim)
+        
+        # Apply linear transformation
+        x = self.input_fc(x)  # (batch_size, seq_len, d_model)
+        
+        # Add positional encoding
+        x += self.pos_encoder
+        
+        # Transpose for transformer encoder (required shape: (seq_len, batch_size, d_model))
+        x = x.transpose(0, 1)
+        
+        # Pass through transformer encoder
+        x = self.transformer_encoder(x)
+        
+        # Take the mean across the sequence length (global average pooling)
+        x = x.mean(dim=0)
+        
+        # Pass through the classifier
+        output = self.fc_out(x)
+        
+        return output
 if __name__=="__main__":
     
     # Example of parallel CNN
@@ -342,10 +447,21 @@ if __name__=="__main__":
     # CNN-1D example
     model = CNN1D(input_dim=6, output_dim=6)
 
-    input_tensor = torch.randn((1, 6, 10568))  # Batch size 1, input dimension 5, sequence length 10
+    input_tensor = torch.randn((1, 6, 10568))  # Batch size 1, input dimension 6, sequence length 10568
+    summary(model, (6,10568))
     output = model(input_tensor)
     print(output.shape)  
 
+    model = CNNLSTMClassifier(input_size=6, num_classes=6, cnn_channels=32, kernel_size=3, lstm_hidden_size=128,lstm_layers=2, dropout=0.5)
+    # summary(model, (6,10568))
+    output = model(input_tensor)
+    print(output) 
+
+
+    model = TransformerClassifier(input_dim=6, seq_len=10568, num_classes=6)
+    # summary(model,(6,10568))
+    output = model(input_tensor)
+    print(output) 
     
 
 

@@ -42,7 +42,7 @@ print("fetch data from database...")
 """
 
 
-sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM mismatch_joints_dataset;"
+sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM bw_mismatch_joints_data;"
 cursor.execute(sql)
 data = cursor.fetchall()
 
@@ -124,7 +124,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 input_size = input_shape[1]  # sequence length
-hidden_size = 256   # LSTM hidden units
+hidden_size = 512   # LSTM hidden units
 output_size = 6     # number of classes
 num_layers = 1      # number of LSTM layers
 
@@ -132,7 +132,7 @@ print(input_shape)
 print(output_shape)
 
 # Instantiate the model, loss function, and optimizer
-model = LSTMClassifier(input_size, hidden_size, output_size=output_shape, num_layers=4)
+model = LSTMClassifier(input_size, hidden_size, output_size=output_shape, num_layers=1, dropout=0)
 summary(model,input_shape)
 model = model.to(device)
 criterion = nn.CrossEntropyLoss()
@@ -290,7 +290,7 @@ plt.ylabel('loss'), plt.xlabel('epoch')
 plt.legend(['loss_C'], loc = 'upper left')
 plt.grid(True)
 
-plt.savefig(f'{month}_{day}_{hour}_{minute}_loss.png')
+plt.savefig(f'lstm_{month}_{day}_{hour}_{minute}_loss.png')
 
 plt.figure()
 plt.plot(list(range(epochs)), train_acc)    # plot your training accuracy
@@ -299,7 +299,7 @@ plt.title('Training acc')
 plt.ylabel('acc (%)'), plt.xlabel('epoch')
 plt.legend(['training acc', 'testing acc'], loc = 'upper left')
 plt.grid(True)
-plt.savefig(f'{month}_{day}_{hour}_{minute}_top1_accuracy.png')
+plt.savefig(f'lstm_{month}_{day}_{hour}_{minute}_top1_accuracy.png')
 
 plt.figure()
 plt.plot(list(range(epochs)), top2_train_acc)    # plot your training accuracy
@@ -308,7 +308,7 @@ plt.title('Top 2 acc')
 plt.ylabel('acc (%)'), plt.xlabel('epoch')
 plt.legend(['training acc', 'val acc'], loc = 'upper left')
 plt.grid(True)
-plt.savefig(f'{month}_{day}_{hour}_{minute}_top2_accuracy.png')
+plt.savefig(f'lstm_{month}_{day}_{hour}_{minute}_top2_accuracy.png')
 # Save the model
 # %%
 

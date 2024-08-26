@@ -1,7 +1,7 @@
-#%%
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader, random_split
+import torch.optim as optim
 from torchsummary import summary
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score, roc_curve, auc
@@ -14,8 +14,8 @@ import time
 from tqdm import tqdm
 from datetime import datetime
 
-from model_playground import *
-    
+from model_playground import RNNClassifier
+
 
 #%%
 
@@ -39,64 +39,10 @@ print("fetch data from database...")
 |  id |  Gain | BW | min_bandwidth | C_error | Circular_error | phase delay | phase | orientation_c_err | t_errX | t_errY | t_errZ | tracking_err_pitch | tracking_err_roll | tracking_err_yaw | contour_err_img_path | ori_contour_err_img_path|
 |-----|-------|----|---------------|---------|----------------|-------------|-------|-------------------|--------|--------|--------|--------------------|-------------------|------------------|----------------------|-------------------------|
 ...
-
 """
 
-# sql = "SELECT Gain FROM bw_mismatch_data;"
-# cursor.execute(sql)
-# gain = np.array([])
-# data = cursor.fetchall()
-# for idx, row in enumerate(data):
-#     # print(json.loads(row[0]))
-#     gain = np.append(gain, json.loads(row[0]),axis=0)
-# gain = gain.reshape((-1,len(json.loads(row[0]))))
 
-
-# sql = "SELECT Bandwidth FROM bw_mismatch_data;"
-# cursor.execute(sql)
-# bandwidth = np.array([])
-# data = cursor.fetchall()
-# for idx, row in enumerate(data):
-#     # print(json.loads(row[0]))
-#     bandwidth = np.append(bandwidth, json.loads(row[0]))
-# bandwidth = bandwidth.reshape((-1,len(json.loads(row[0]))))
-
-# print(bandwidth)
-# sql = "SELECT min_bandwidth FROM bw_mismatch_data_new;"
-# cursor.execute(sql)
-# min_bandwidth = np.array([])
-# data = cursor.fetchall()
-# for idx, row in enumerate(data):
-#     # print(row[0])
-#     arr = [0]*6
-#     arr[row[0]] = 1
-#     min_bandwidth = np.append(min_bandwidth,[arr])
-# min_bandwidth = min_bandwidth.reshape((-1, len(arr)))
-
-# sql = "SELECT contour_err FROM bw_mismatch_data;"
-# cursor.execute(sql)
-# contour_err = np.array([])
-# data = cursor.fetchall()
-# for idx, row in enumerate(data):
-#     # print(len(json.loads(row[0])))
-#     contour_err = np.append(contour_err, json.loads(row[0]))
-# # print(row)
-# contour_err = contour_err.reshape((-1, len(json.loads(row[0]))))
-
-# sql = "SELECT id,min_bandwidth, contour_err, circular_err, phase_delay,tracking_err_z, phase FROM bw_mismatch_data_new;"
-# cursor.execute(sql)
-# ori_contour_err = np.array([])
-# min_bandwidth = []
-# train_data = [[] for _ in range(5)]
-# data = cursor.fetchall()
-# for _, row in tqdm(enumerate(data), total=len(data)):
-#     min_bandwidth.append(row[1])
-#     for i in range(5):
-#         train_data[i].append(json.loads(row[i+2]))
-
-
-
-sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM mismatch_joints_dataset;"
+sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM bw_mismatch_joints_data;"
 cursor.execute(sql)
 data = cursor.fetchall()
 
@@ -122,9 +68,6 @@ outputs = np.array(outputs)
 
 print('output data shape: ',outputs.shape)
 
-# contour_err = np.stack((contour_err, ori_contour_err), axis=1)
-
-# print(contour_err.shape)
 #%%
 
 epochs = 1000
@@ -135,7 +78,7 @@ input_shape = (inputs[0,:,:].shape) #length of row in array contouring_err
 output_shape = (outputs.shape[1])
 
 print(input_shape, output_shape)
-# Create dataset using a custom class (optional, but recommended for flexibility)
+
 class CustomDataset(torch.utils.data.Dataset):
     def __init__(self, data, target):
         self.data = data
@@ -154,11 +97,9 @@ test_size = inputs.shape[0] - train_size
 print(f'train size : {train_size}')
 print(f'test size : {test_size}')
 
-# contour_err = torch.tensor(contour_err, dtype=torch.float32)
-# min_bandwidth = torch.tensor(min_bandwidth, dtype=torch.long)
-
 # Create the combined dataset
 dataset = CustomDataset(inputs, outputs)
+
 
 # Perform train-test split using random_split for better shuffling
 X_train, X_test, y_train, y_test = train_test_split(inputs, outputs, test_size=0.2, random_state=42)
@@ -182,18 +123,21 @@ test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
+input_size = input_shape[1]  # sequence length
+hidden_size = 256   # LSTM hidden units
+output_size = 6     # number of classes
+num_layers = 1      # number of LSTM layers
 
-# Define loss function
-criterion = nn.CrossEntropyLoss()
+print(input_shape)
+print(output_shape)
 
-
-# Create the network and optimizer
-model = CNN1D(input_dim=input_shape[0], output_dim=output_shape)
+# Instantiate the model, loss function, and optimizer
+model = RNNClassifier(input_size, hidden_size, output_size=output_shape, num_layers=2)
 summary(model,input_shape)
-# print(model)
 model = model.to(device)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.01)
 
 train_acc = []
 test_acc = []
@@ -203,6 +147,7 @@ top2_test_acc = []
 
 best_acc = 0
 best_model:dict
+
 
 #%%
 # Train the model
@@ -273,6 +218,7 @@ for epoch in (range(epochs)):
         top2_test_acc.append(100*(top2_correct_test / total_test))
         print(f'Testing acc : {correct_test / total_test} | Top 2 Test acc: {top2_correct_test / total_test}')
 
+
 current_datetime = datetime.now()
 year = current_datetime.year
 month = current_datetime.month
@@ -300,7 +246,7 @@ sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', cbar=False)
 plt.xlabel('Predicted Label')
 plt.ylabel('True Label')
 plt.title('Confusion Matrix')
-plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_Confusion_Matrix.png')
+plt.savefig(f'rnn_{month}_{day}_{hour}_{minute}_Confusion_Matrix.png')
 
 # Classification Report
 print("Classification Report:\n", classification_report(all_targets, all_preds))
@@ -321,6 +267,7 @@ for i in range(output_shape):
     fpr[i], tpr[i], _ = roc_curve(y_test_labels == i, y_score[:, i])
     roc_auc[i] = auc(fpr[i], tpr[i])
 
+
 plt.figure()
 for i in range(output_shape):
     plt.plot(fpr[i], tpr[i], label=f'ROC curve (area = {roc_auc[i]:.2f}) for class {i}')
@@ -331,14 +278,13 @@ plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
 plt.title('Receiver Operating Characteristic')
 plt.legend(loc="lower right")
-plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_ROC_curve.png')
-
+plt.savefig(f'rnn_{month}_{day}_{hour}_{minute}_ROC_curve.png')
 
 
 
 
 # Save the model (optional)
-torch.save(best_model, f"{month}_{day}_{hour}_{minute}_best_model_acc_{best_acc}.pth")
+torch.save(best_model, f"RNN_{month}_{day}_{hour}_{minute}_best_model_acc_{best_acc}.pth")
 plt.figure()
 plt.plot(list(range(epochs)), loss_epoch_C) # plot your loss
 plt.title('Training Loss')
@@ -346,7 +292,7 @@ plt.ylabel('loss'), plt.xlabel('epoch')
 plt.legend(['loss_C'], loc = 'upper left')
 plt.grid(True)
 
-plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_loss.png')
+plt.savefig(f'rnn_{month}_{day}_{hour}_{minute}_loss.png')
 
 plt.figure()
 plt.plot(list(range(epochs)), train_acc)    # plot your training accuracy
@@ -355,7 +301,7 @@ plt.title('Training acc')
 plt.ylabel('acc (%)'), plt.xlabel('epoch')
 plt.legend(['training acc', 'testing acc'], loc = 'upper left')
 plt.grid(True)
-plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_top1_accuracy.png')
+plt.savefig(f'rnn_{month}_{day}_{hour}_{minute}_top1_accuracy.png')
 
 plt.figure()
 plt.plot(list(range(epochs)), top2_train_acc)    # plot your training accuracy
@@ -364,10 +310,10 @@ plt.title('Top 2 acc')
 plt.ylabel('acc (%)'), plt.xlabel('epoch')
 plt.legend(['training acc', 'val acc'], loc = 'upper left')
 plt.grid(True)
-plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_top2_accuracy.png')
-# Save the model
+plt.savefig(f'rnn_{month}_{day}_{hour}_{minute}_top2_accuracy.png')
+
+plt.show()
 # %%
 
 cursor.close()
 connction.close()
-

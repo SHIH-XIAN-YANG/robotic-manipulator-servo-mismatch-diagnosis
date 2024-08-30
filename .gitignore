@@ -1,0 +1,25 @@
+# Ignore text files
+*.txt
+
+# Ignore image files
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# Ignore common setting files
+*.config
+*.ini
+*.log
+*.lock
+
+# Ignore specific folders
+.settings/
+*.cache/
+*.tmp/
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
+.pth

@@ -42,7 +42,7 @@ print("fetch data from database...")
 """
 
 
-sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM bw_mismatch_joints_data;"
+sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM mismatch_joints_dataset;"
 cursor.execute(sql)
 data = cursor.fetchall()
 

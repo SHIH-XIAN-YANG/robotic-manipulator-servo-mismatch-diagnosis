@@ -42,7 +42,7 @@ print("fetch data from database...")
 """
 
 
-sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM bw_mismatch_joints_data;"
+sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM mismatch_joints_dataset;"
 cursor.execute(sql)
 data = cursor.fetchall()
 
@@ -124,7 +124,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 input_size = input_shape[1]  # sequence length
-hidden_size = 128   # LSTM hidden units
+hidden_size = 256   # LSTM hidden units
 output_size = 6     # number of classes
 num_layers = 2      # number of LSTM layers
 
@@ -132,7 +132,7 @@ print(input_shape)
 print(output_shape)
 
 # Instantiate the model, loss function, and optimizer
-model = CNNLSTMClassifier(input_size=6, num_classes=6, cnn_channels=16, kernel_size=3, lstm_hidden_size=hidden_size,lstm_layers=num_layers, dropout=0.5)
+model = CNNLSTMClassifier(input_size=6, num_classes=6, cnn_channels=16, kernel_size=3, lstm_hidden_size=hidden_size,lstm_layers=num_layers, dropout=0.3)
 summary(model,input_shape)
 model = model.to(device)
 criterion = nn.CrossEntropyLoss()

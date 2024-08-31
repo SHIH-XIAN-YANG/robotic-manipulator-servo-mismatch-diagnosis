@@ -309,8 +309,8 @@ class LSTMClassifier(nn.Module):
         self.dropout = nn.Dropout(dropout)
     
     def forward(self, x):
-        h_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)  # hidden state
-        c_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)  # cell state
+        h_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)  # hidden state
+        c_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)  # cell state
         
         out, _ = self.lstm(x, (h_0, c_0))
         out = out[:, -1, :]  # take the last output
@@ -334,7 +334,7 @@ class RNNClassifier(nn.Module):
 
     
     def forward(self, x):
-        h_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+        h_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
         
         out, _ = self.rnn(x, h_0)
         out = out[:, -1, :]  # Take the output from the last time step
@@ -443,25 +443,31 @@ if __name__=="__main__":
 
     output = model((image1, image2, image3, image4),)
     print(output.shape)  
+    input_shape = (6,10568)
 
     # CNN-1D example
     model = CNN1D(input_dim=6, output_dim=6)
 
     input_tensor = torch.randn((1, 6, 10568))  # Batch size 1, input dimension 6, sequence length 10568
-    summary(model, (6,10568))
+    # summary(model, (6,10568))
     output = model(input_tensor)
     print(output.shape)  
 
     model = CNNLSTMClassifier(input_size=6, num_classes=6, cnn_channels=32, kernel_size=3, lstm_hidden_size=128,lstm_layers=2, dropout=0.5)
-    # summary(model, (6,10568))
+    # summary(model, input_shape)
+    output = model(input_tensor)
+    print(output) 
+    
+    # Instantiate the model, loss function, and optimizer
+    model = LSTMClassifier(input_size=10568, hidden_size=128, output_size=6, num_layers=2, dropout=0.5)
+    summary(model,input_shape)
     output = model(input_tensor)
     print(output) 
 
-
-    model = TransformerClassifier(input_dim=6, seq_len=10568, num_classes=6)
-    # summary(model,(6,10568))
-    output = model(input_tensor)
-    print(output) 
+    # model = TransformerClassifier(input_dim=6, seq_len=10568, num_classes=6)
+    # summary(model,input_shape)
+    # output = model(input_tensor)
+    # print(output) 
     
 
 

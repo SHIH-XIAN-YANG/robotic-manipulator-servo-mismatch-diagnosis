@@ -361,7 +361,7 @@ class CNNLSTMClassifier(nn.Module):
         )
 
         # LSTM layers
-        self.lstm = nn.LSTM(input_size=cnn_channels*4, hidden_size=lstm_hidden_size, num_layers=lstm_layers, batch_first=True, dropout=0)
+        self.lstm = nn.LSTM(input_size=cnn_channels*4, hidden_size=lstm_hidden_size, num_layers=lstm_layers, batch_first=True, dropout=dropout)
 
         # Fully connected layers
         self.fc = nn.Sequential(

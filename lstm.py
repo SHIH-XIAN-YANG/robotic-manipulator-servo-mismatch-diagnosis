@@ -42,7 +42,7 @@ print("fetch data from database...")
 """
 
 
-sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM bw_mismatch_joints_data;"
+sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM mismatch_joints_dataset;"
 cursor.execute(sql)
 data = cursor.fetchall()
 
@@ -124,7 +124,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 input_size = input_shape[1]  # sequence length
-hidden_size = 512   # LSTM hidden units
+hidden_size = 256   # LSTM hidden units
 output_size = 6     # number of classes
 num_layers = 1      # number of LSTM layers
 
@@ -132,7 +132,7 @@ print(input_shape)
 print(output_shape)
 
 # Instantiate the model, loss function, and optimizer
-model = LSTMClassifier(input_size, hidden_size, output_size=output_shape, num_layers=1, dropout=0)
+model = LSTMClassifier(input_size, hidden_size, output_size=output_shape, num_layers=3, dropout=0.5)
 summary(model,input_shape)
 model = model.to(device)
 criterion = nn.CrossEntropyLoss()
@@ -218,6 +218,16 @@ for epoch in (range(epochs)):
         top2_test_acc.append(100*(top2_correct_test / total_test))
         print(f'Testing acc : {correct_test / total_test} | Top 2 Test acc: {top2_correct_test / total_test}')
 
+# Get the current date and time
+current_datetime = datetime.now()
+
+# Extract year, month, day, hour, and minute components
+year = current_datetime.year
+month = current_datetime.month
+day = current_datetime.day
+hour = current_datetime.hour
+minute = current_datetime.minute
+
 # After training, evaluate on test set and calculate metrics
 all_preds = []
 all_targets = []
@@ -238,7 +248,7 @@ sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', cbar=False)
 plt.xlabel('Predicted Label')
 plt.ylabel('True Label')
 plt.title('Confusion Matrix')
-plt.show()
+plt.savefig(f'lstm_{month}_{day}_{hour}_{minute}_Confusion Matrix.png')
 
 # Classification Report
 print("Classification Report:\n", classification_report(all_targets, all_preds))
@@ -269,17 +279,8 @@ plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
 plt.title('Receiver Operating Characteristic')
 plt.legend(loc="lower right")
-plt.show()
+plt.savefig(f'lstm_{month}_{day}_{hour}_{minute}_ROC.png')
 
-# Get the current date and time
-current_datetime = datetime.now()
-
-# Extract year, month, day, hour, and minute components
-year = current_datetime.year
-month = current_datetime.month
-day = current_datetime.day
-hour = current_datetime.hour
-minute = current_datetime.minute
 
 # Save the model (optional)
 torch.save(best_model, f"lstm_{month}_{day}_{hour}_{minute}_best_model_acc_{best_acc}.pth")
@@ -309,6 +310,7 @@ plt.ylabel('acc (%)'), plt.xlabel('epoch')
 plt.legend(['training acc', 'val acc'], loc = 'upper left')
 plt.grid(True)
 plt.savefig(f'lstm_{month}_{day}_{hour}_{minute}_top2_accuracy.png')
+plt.show()
 # Save the model
 # %%
 

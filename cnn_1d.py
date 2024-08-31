@@ -333,10 +333,6 @@ plt.title('Receiver Operating Characteristic')
 plt.legend(loc="lower right")
 plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_ROC_curve.png')
 
-
-
-
-
 # Save the model (optional)
 torch.save(best_model, f"{month}_{day}_{hour}_{minute}_best_model_acc_{best_acc}.pth")
 plt.figure()
@@ -365,6 +361,7 @@ plt.ylabel('acc (%)'), plt.xlabel('epoch')
 plt.legend(['training acc', 'val acc'], loc = 'upper left')
 plt.grid(True)
 plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_top2_accuracy.png')
+plt.show()
 # Save the model
 # %%
 

@@ -17,6 +17,7 @@ from datetime import datetime
 from model_playground import LSTMClassifier
 
 
+
 #%%
 
 # connect to databse
@@ -244,7 +245,7 @@ with torch.no_grad():
 # Confusion Matrix
 conf_matrix = confusion_matrix(all_targets, all_preds)
 plt.figure(figsize=(8, 6))
-sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', cbar=False)
+sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='OrRd', cbar=True)
 plt.xlabel('Predicted Label')
 plt.ylabel('True Label')
 plt.title('Confusion Matrix')

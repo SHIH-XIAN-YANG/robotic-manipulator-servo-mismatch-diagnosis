@@ -137,8 +137,8 @@ class CNN1D(nn.Module):
         self.dropout7 = nn.Dropout(p=0.1)
         self.flatten = nn.Flatten()
         self.fc1 = nn.Linear(83968, 1024)
-        self.fc2 = nn.Linear(1024, 512)
-        self.fc3 = nn.Linear(84544, output_dim)
+        self.fc2 = nn.Linear(84480, 1024)
+        self.fc3 = nn.Linear(84480, output_dim)
 
     def forward(self, x):
         x = self.pool(self.relu(self.batch_norm1(self.conv1(x))))
@@ -147,8 +147,8 @@ class CNN1D(nn.Module):
         x = self.dropout2(x)
         x = self.pool(self.relu(self.batch_norm3(self.conv3(x))))
         x = self.dropout3(x)
-        # x = self.pool(self.relu(self.batch_norm4(self.conv4(x))))
-        # x = self.dropout4(x)
+        x = self.pool(self.relu(self.batch_norm4(self.conv4(x))))
+        x = self.dropout4(x)
         # x = self.pool(self.relu(self.batch_norm5(self.conv5(x))))
         # x = self.dropout5(x)
         # x = self.pool(self.relu(self.batch_norm6(self.conv6(x))))
@@ -448,7 +448,7 @@ if __name__=="__main__":
     model = CNN1D(input_dim=6, output_dim=6)
 
     input_tensor = torch.randn((1, 6, 10568))  # Batch size 1, input dimension 6, sequence length 10568
-    summary(model, (6,10568))
+    # summary(model, (6,10568))
     output = model(input_tensor)
     print(output.shape)  
 
@@ -460,8 +460,8 @@ if __name__=="__main__":
 
     model = TransformerClassifier(input_dim=6, seq_len=10568, num_classes=6)
     # summary(model,(6,10568))
-    output = model(input_tensor)
-    print(output) 
+    # output = model(input_tensor)
+    # print(output) 
     
 
 

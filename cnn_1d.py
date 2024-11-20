@@ -19,8 +19,6 @@ import random
 from model_playground import *
     
 
-#%%
-
 # connect to databse
 
 db = "bw_mismatch_db"
@@ -64,7 +62,16 @@ for i, bw in enumerate(min_bandwidth):
 outputs = np.array(outputs)
 
 print('output data shape: ',outputs.shape)
+# Create a histogram
+class_counts = {cls: min_bandwidth.count(cls) for cls in set(min_bandwidth)}
 
+# Plot the distribution
+plt.figure(figsize=(8, 5))
+plt.bar(class_counts.keys(), class_counts.values())
+plt.xlabel('Class')
+plt.ylabel('Count')
+plt.title('Dataset Distribution Distribution')
+plt.xticks(rotation=45)
 # plt.show()
 
 # print(contour_err.shape)
@@ -343,8 +350,8 @@ plt.ylabel('Loss')
 plt.xlabel('Epoch')
 plt.legend(loc='upper right')
 plt.grid(True)
-plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_loss.png')
-plt.show()
+# plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_loss.png')
+# plt.show()
 
 # Plot Training and Validation Accuracy
 plt.figure()
@@ -356,7 +363,7 @@ plt.xlabel('Epoch')
 plt.legend(loc='lower right')
 plt.grid(True)
 plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_accuracy.png')
-plt.show()
+
 # Plot Top-2 Training and Validation Accuracy
 plt.figure()
 plt.plot(range(1, len(top2_train_acc)+1), top2_train_acc, label='Top-2 Training Accuracy')
@@ -368,7 +375,7 @@ plt.legend(loc='lower right')
 plt.grid(True)
 plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_top2_accuracy.png')
 plt.show()
-plt.close()
+
 
 
 cursor.close()

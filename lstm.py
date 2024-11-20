@@ -13,7 +13,7 @@ import pymysql
 import time
 from tqdm import tqdm
 from datetime import datetime
-
+import random
 from model_playground import LSTMClassifier
 
 

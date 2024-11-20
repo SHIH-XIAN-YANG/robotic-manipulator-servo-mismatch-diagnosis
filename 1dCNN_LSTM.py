@@ -13,6 +13,7 @@ import pymysql
 import time
 from tqdm import tqdm
 from datetime import datetime
+import random
 
 from model_playground import CNNLSTMClassifier
 
@@ -41,8 +42,8 @@ print("fetch data from database...")
 ...
 """
 
-
-sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM mismatch_joints_dataset;"
+table_name = "joint_tracking_err_table_new"
+sql = f"SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM {table_name};"
 cursor.execute(sql)
 data = cursor.fetchall()
 
@@ -51,6 +52,9 @@ train_data = [[] for _ in range(6)]
 
 print("load data...")
 for _, row in tqdm(enumerate(data), total=len(data)):
+    if(row[1] == 3): #ignore half of data from class "3" to avoid inbalance data
+        if random.randint(1,10)%2:
+            continue
     min_bandwidth.append(row[1])
     for i in range(6):
         train_data[i].append(json.loads(row[i+2]))
@@ -68,6 +72,17 @@ outputs = np.array(outputs)
 
 print('output data shape: ',outputs.shape)
 
+# Count occurrences of each class
+class_counts = {cls: min_bandwidth.count(cls) for cls in set(min_bandwidth)}
+
+# Plot the distribution
+plt.figure(figsize=(8, 5))
+plt.bar(class_counts.keys(), class_counts.values())
+plt.xlabel('Class')
+plt.ylabel('Count')
+plt.title('Dataset Distribution Distribution')
+plt.xticks(rotation=45)
+plt.show()
 #%%
 
 epochs = 1000

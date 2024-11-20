@@ -4,14 +4,6 @@ import numpy as np
 import pymysql
 import time
 
-class TestClass():
-    def __init__(self):
-        print("import success")
-    
-    
-
-
-
 # connect to databse
 connction = pymysql.connect(
     host = "localhost",

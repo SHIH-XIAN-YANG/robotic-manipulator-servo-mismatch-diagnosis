@@ -1,9 +1,10 @@
-#%%
+
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader, random_split
 from torchsummary import summary
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import label_binarize
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score, roc_curve, auc
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -13,6 +14,7 @@ import pymysql
 import time
 from tqdm import tqdm
 from datetime import datetime
+import random
 
 from model_playground import *
     
@@ -22,6 +24,7 @@ from model_playground import *
 # connect to databse
 
 db = "bw_mismatch_db"
+table_name = "joint_tracking_err_table_new"
 print(f"Connect to database {db}")
 connction = pymysql.connect(
     host = "localhost",
@@ -33,70 +36,7 @@ connction = pymysql.connect(
 
 cursor = connction.cursor()
 
-print("fetch data from database...")
-"""
-+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-|  id |  Gain | BW | min_bandwidth | C_error | Circular_error | phase delay | phase | orientation_c_err | t_errX | t_errY | t_errZ | tracking_err_pitch | tracking_err_roll | tracking_err_yaw | contour_err_img_path | ori_contour_err_img_path|
-|-----|-------|----|---------------|---------|----------------|-------------|-------|-------------------|--------|--------|--------|--------------------|-------------------|------------------|----------------------|-------------------------|
-...
-
-"""
-
-# sql = "SELECT Gain FROM bw_mismatch_data;"
-# cursor.execute(sql)
-# gain = np.array([])
-# data = cursor.fetchall()
-# for idx, row in enumerate(data):
-#     # print(json.loads(row[0]))
-#     gain = np.append(gain, json.loads(row[0]),axis=0)
-# gain = gain.reshape((-1,len(json.loads(row[0]))))
-
-
-# sql = "SELECT Bandwidth FROM bw_mismatch_data;"
-# cursor.execute(sql)
-# bandwidth = np.array([])
-# data = cursor.fetchall()
-# for idx, row in enumerate(data):
-#     # print(json.loads(row[0]))
-#     bandwidth = np.append(bandwidth, json.loads(row[0]))
-# bandwidth = bandwidth.reshape((-1,len(json.loads(row[0]))))
-
-# print(bandwidth)
-# sql = "SELECT min_bandwidth FROM bw_mismatch_data_new;"
-# cursor.execute(sql)
-# min_bandwidth = np.array([])
-# data = cursor.fetchall()
-# for idx, row in enumerate(data):
-#     # print(row[0])
-#     arr = [0]*6
-#     arr[row[0]] = 1
-#     min_bandwidth = np.append(min_bandwidth,[arr])
-# min_bandwidth = min_bandwidth.reshape((-1, len(arr)))
-
-# sql = "SELECT contour_err FROM bw_mismatch_data;"
-# cursor.execute(sql)
-# contour_err = np.array([])
-# data = cursor.fetchall()
-# for idx, row in enumerate(data):
-#     # print(len(json.loads(row[0])))
-#     contour_err = np.append(contour_err, json.loads(row[0]))
-# # print(row)
-# contour_err = contour_err.reshape((-1, len(json.loads(row[0]))))
-
-# sql = "SELECT id,min_bandwidth, contour_err, circular_err, phase_delay,tracking_err_z, phase FROM bw_mismatch_data_new;"
-# cursor.execute(sql)
-# ori_contour_err = np.array([])
-# min_bandwidth = []
-# train_data = [[] for _ in range(5)]
-# data = cursor.fetchall()
-# for _, row in tqdm(enumerate(data), total=len(data)):
-#     min_bandwidth.append(row[1])
-#     for i in range(5):
-#         train_data[i].append(json.loads(row[i+2]))
-
-
-
-sql = "SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM mismatch_joints_dataset;"
+sql = f"SELECT id, min_bandwidth, tracking_err_j1, tracking_err_j2, tracking_err_j3, tracking_err_j4, tracking_err_j5, tracking_err_j6 FROM {table_name};"
 cursor.execute(sql)
 data = cursor.fetchall()
 
@@ -105,6 +45,9 @@ train_data = [[] for _ in range(6)]
 
 print("load data...")
 for _, row in tqdm(enumerate(data), total=len(data)):
+    if(row[1] == 3): #ignore half of data from class "3" to avoid inbalance data
+        if random.randint(1,10)%2:
+            continue
     min_bandwidth.append(row[1])
     for i in range(6):
         train_data[i].append(json.loads(row[i+2]))
@@ -121,8 +64,17 @@ for i, bw in enumerate(min_bandwidth):
 outputs = np.array(outputs)
 
 print('output data shape: ',outputs.shape)
+# Create a histogram
+plt.hist(min_bandwidth, bins=6, edgecolor='black', color='skyblue')
 
-# contour_err = np.stack((contour_err, ori_contour_err), axis=1)
+# Add titles and labels
+plt.title('Dataset Distribution')
+plt.xlabel('joint index')
+plt.ylabel('number of data')
+
+# Display the plot
+# plt.show()
+plt.close()
 
 # print(contour_err.shape)
 #%%
@@ -151,29 +103,38 @@ class CustomDataset(torch.utils.data.Dataset):
 train_size = int(0.8 * inputs.shape[0])
 test_size = inputs.shape[0] - train_size
 
-print(f'train size : {train_size}')
-print(f'test size : {test_size}')
-
-# contour_err = torch.tensor(contour_err, dtype=torch.float32)
-# min_bandwidth = torch.tensor(min_bandwidth, dtype=torch.long)
-
 # Create the combined dataset
 dataset = CustomDataset(inputs, outputs)
 
 # Perform train-test split using random_split for better shuffling
-X_train, X_test, y_train, y_test = train_test_split(inputs, outputs, test_size=0.2, random_state=42)
+# X_train, X_test, y_train, y_test = train_test_split(inputs, outputs, test_size=0.2, random_state=42)
+
+X_train, X_temp, y_train, y_temp = train_test_split(
+    inputs, outputs, test_size=0.3, stratify=outputs, random_state=42
+)
+
+X_val, X_test, y_val, y_test = train_test_split(
+    X_temp, y_temp, test_size=0.5, stratify=y_temp, random_state=42
+)
+print(f'Train size: {X_train.shape[0]}')
+print(f'Validation size: {X_val.shape[0]}')
+print(f'Test size: {X_test.shape[0]}')
 
 # Convert numpy arrays to PyTorch tensors
 X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
+X_val_tensor = torch.tensor(X_val, dtype=torch.float32)
 X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
 y_train_tensor = torch.tensor(y_train, dtype=torch.float32)
+y_val_tensor = torch.tensor(np.argmax(y_val, axis=1), dtype=torch.long)
 y_test_tensor = torch.tensor(y_test, dtype=torch.float32)
 
 train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
+val_dataset = TensorDataset(X_val_tensor, y_val_tensor)
 test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
 
 # Configure dataloaders for training and testing
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)  # Adjust batch size as needed
+val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)  # No shuffling for testing
 
 
@@ -196,20 +157,24 @@ model = model.to(device)
 optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.01)
 
 train_acc = []
-test_acc = []
+val_acc = []
 loss_epoch_C = []
 top2_train_acc = []
-top2_test_acc = []
+top2_val_acc = []
 
-best_acc = 0
-best_model:dict
+# Early Stopping Parameters (optional)
+patience = 200
+best_epoch = 0
+
+best_val_acc  = 0
+best_model_state:dict = None
 
 #%%
 # Train the model
 for epoch in (range(epochs)):
     correct_train, total_train = 0, 0
-    correct_test, total_test = 0, 0
-    top2_correct_train, top2_correct_test = 0,0
+    
+    top2_correct_train=0
     train_loss_C = 0
 
     for data, target in tqdm(train_dataloader):
@@ -233,45 +198,77 @@ for epoch in (range(epochs)):
 
         total_train += target.size(0)
         correct_train += (predicted == target).sum().item()
-        top2_correct_train += torch.sum(torch.eq(predicted_top2[:, 0], target) | torch.eq(predicted_top2[:, 1], target)).item()
+        top2_correct_train += torch.sum(
+            (predicted_top2[:, 0] == target) | (predicted_top2[:, 1] == target)
+        ).item()
 
         train_loss_C += loss.item()
 
-    print(f'Training epoch: {epoch + 1}/{epochs} / loss_C: {train_loss_C/len(train_dataloader)} | acc: {correct_train / total_train} | top 2 acc: {top2_correct_train/total_train}')
+    # Calculate training accuracy
+    train_accuracy = correct_train / total_train
+    top2_train_accuracy = top2_correct_train / total_train
+    train_acc.append(train_accuracy * 100)
+    top2_train_acc.append(top2_train_accuracy * 100)
+    loss_epoch_C.append(train_loss_C / len(train_dataloader))
 
+    print(f'\nEpoch {epoch+1}/{epochs} - Training Loss: {train_loss_C/len(train_dataloader):.4f} | '
+          f'Training Acc: {train_accuracy:.4f} | Top2 Acc: {top2_train_accuracy:.4f}')
 
-    # Evaluate on test set (optional)
+    # Validation phase
+    model.eval()
+    correct_val, total_val = 0, 0
+    top2_correct_val = 0
+    val_loss_C = 0
+
     with torch.no_grad():
         correct = 0
         # total = 0
-        for data, target in test_dataloader:
+        for data, target in tqdm(val_dataloader, desc=f'Epoch {epoch+1}/{epochs} - Validation'):
             
             # if torch.is_tensor(data) and data.dtype == torch.double:
             #     data = data.float()
                 # target = target.long()
             data, target = data.to(device), target.to(device)
             output = model(data)
+            loss = criterion(output, target)
             # print(output.data.shape)
-            total_test += target.size(0)
-            predicted = torch.argmax(output.data, dim=1)
+            # total_test += target.size(0)
+            # Calculate predictions
+            _, predicted = torch.max(output.data, 1)
             _, predicted_top2 = torch.topk(output.data, 2, dim=1)
-            target = torch.argmax(target, dim=1)
             
-            # print(f'predice t= {predicted}')
-            
-            # print(predicted)
-            # print(target)
-            correct_test += (predicted == target).sum().item()
-            top2_correct_test += torch.sum(torch.eq(predicted_top2[:, 0], target) | torch.eq(predicted_top2[:, 1], target)).item()
-        if (100*correct_test/total_test) > best_acc:
-            best_acc = (100*correct_test/total_test)
-            best_model = model.state_dict()
-        train_acc.append(100 * correct_train / total_train)
-        test_acc.append(100 * correct_test / total_test)
-        loss_epoch_C.append(train_loss_C / len(train_dataloader))
-        top2_train_acc.append(100*(top2_correct_train/total_train)) # training accuracy
-        top2_test_acc.append(100*(top2_correct_test / total_test))
-        print(f'Testing acc : {correct_test / total_test} | Top 2 Test acc: {top2_correct_test / total_test}')
+            # Update validation metrics
+            total_val += target.size(0)
+            correct_val += (predicted == target).sum().item()
+            top2_correct_val += torch.sum(
+                (predicted_top2[:, 0] == target) | (predicted_top2[:, 1] == target)
+            ).item()
+
+            val_loss_C += loss.item()
+    # Calculate validation accuracy
+    val_accuracy = correct_val / total_val
+    top2_val_accuracy = top2_correct_val / total_val
+    val_acc.append(val_accuracy * 100)
+    top2_val_acc.append(top2_val_accuracy * 100)
+
+    print(f'Epoch {epoch+1}/{epochs} - Validation Loss: {val_loss_C/len(val_dataloader):.4f} | '
+          f'Validation Acc: {val_accuracy:.4f} | Top2 Acc: {top2_val_accuracy:.4f}')
+    
+    # Save the best model based on validation accuracy
+    if val_accuracy > best_val_acc:
+        best_val_acc = val_accuracy
+        best_model_state = model.state_dict()
+        best_epoch = epoch + 1
+        print(f'--> Best model updated at epoch {best_epoch} with Validation Acc: {best_val_acc:.4f}')
+        # Reset patience counter if using early stopping
+        patience_counter = 0
+    else:
+        # Increment patience counter if using early stopping
+        if 'patience_counter' in locals():
+            patience_counter += 1
+            if patience_counter >= patience:
+                print(f'Early stopping triggered after epoch {epoch+1}')
+                break
 
 current_datetime = datetime.now()
 year = current_datetime.year
@@ -280,10 +277,19 @@ day = current_datetime.day
 hour = current_datetime.hour
 minute = current_datetime.minute
 
+# Save the model (optional)
+torch.save(best_model_state, f"{month}_{day}_{hour}_{minute}_best_model_acc_{best_val_acc}.pth")
+
 # After training, evaluate on test set and calculate metrics
 all_preds = []
 all_targets = []
-model.load_state_dict(best_model)
+all_preds_proba = []
+# Load the best model state
+if best_model_state is not None:
+    model.load_state_dict(best_model_state)
+    print(f'\nLoaded best model from epoch {best_epoch} with Validation Acc: {best_val_acc:.4f}')
+else:
+    print('\nNo improvement during training; using the last epoch model.')
 model.eval()  # Set the model to evaluation mode
 with torch.no_grad():
     for data, target in test_dataloader:
@@ -292,6 +298,7 @@ with torch.no_grad():
         predicted = torch.argmax(output.data, dim=1)
         all_preds.extend(predicted.cpu().numpy())
         all_targets.extend(torch.argmax(target, dim=1).cpu().numpy())
+        all_preds_proba.extend(output.data.cpu().numpy())
 
 # Confusion Matrix
 conf_matrix = confusion_matrix(all_targets, all_preds)
@@ -305,25 +312,26 @@ plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_Confusion_Matrix.png')
 # Classification Report
 print("Classification Report:\n", classification_report(all_targets, all_preds))
 
-# ROC-AUC Score and ROC Curve
-all_preds_proba = []
-for data, target in test_dataloader:
-    data, target = data.to(device), target.to(device)
-    output = model(data)
-    all_preds_proba.extend(output.data.cpu().numpy())
 
+# ROC-AUC Score and ROC Curve
 y_test_labels = np.array(all_targets)
 y_score = np.array(all_preds_proba)
 
+# Binarize the output labels for multi-class ROC
+y_test_binarized = label_binarize(y_test_labels, classes=[0, 1, 2, 3, 4, 5])
+n_classes = y_test_binarized.shape[1]
+
 # One-vs-Rest ROC curve
 fpr, tpr, roc_auc = dict(), dict(), dict()
-for i in range(output_shape):
-    fpr[i], tpr[i], _ = roc_curve(y_test_labels == i, y_score[:, i])
+for i in range(n_classes):
+    fpr[i], tpr[i], _ = roc_curve(y_test_binarized[:, i], y_score[:, i])
     roc_auc[i] = auc(fpr[i], tpr[i])
 
 plt.figure()
-for i in range(output_shape):
-    plt.plot(fpr[i], tpr[i], label=f'ROC curve (area = {roc_auc[i]:.2f}) for class {i}')
+colors = ['aqua', 'darkorange', 'cornflowerblue', 'green', 'red', 'purple']
+for i, color in zip(range(n_classes), colors):
+    plt.plot(fpr[i], tpr[i], color=color,
+             label=f'ROC curve (area = {roc_auc[i]:.2f}) for class {i}')
 plt.plot([0, 1], [0, 1], color='navy', linestyle='--')
 plt.xlim([0.0, 1.0])
 plt.ylim([0.0, 1.05])
@@ -332,39 +340,45 @@ plt.ylabel('True Positive Rate')
 plt.title('Receiver Operating Characteristic')
 plt.legend(loc="lower right")
 plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_ROC_curve.png')
+plt.show()
 
-# Save the model (optional)
-torch.save(best_model, f"{month}_{day}_{hour}_{minute}_best_model_acc_{best_acc}.pth")
+
+# Plot Training and Validation Loss
 plt.figure()
-plt.plot(list(range(epochs)), loss_epoch_C) # plot your loss
-plt.title('Training Loss')
-plt.ylabel('loss'), plt.xlabel('epoch')
-plt.legend(['loss_C'], loc = 'upper left')
+plt.plot(range(1, len(loss_epoch_C)+1), loss_epoch_C, label='Training Loss')
+plt.plot(range(1, len(val_acc)+1), [val_loss / len(val_dataloader) for val_loss in loss_epoch_C], label='Validation Loss')  # Adjust as needed
+plt.title('Training and Validation Loss')
+plt.ylabel('Loss')
+plt.xlabel('Epoch')
+plt.legend(loc='upper right')
 plt.grid(True)
-
 plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_loss.png')
+plt.show()
 
+# Plot Training and Validation Accuracy
 plt.figure()
-plt.plot(list(range(epochs)), train_acc)    # plot your training accuracy
-plt.plot(list(range(epochs)), test_acc)     # plot your testing accuracy
-plt.title('Training acc')
-plt.ylabel('acc (%)'), plt.xlabel('epoch')
-plt.legend(['training acc', 'testing acc'], loc = 'upper left')
+plt.plot(range(1, len(train_acc)+1), train_acc, label='Training Accuracy')
+plt.plot(range(1, len(val_acc)+1), val_acc, label='Validation Accuracy')
+plt.title('Training and Validation Accuracy')
+plt.ylabel('Accuracy (%)')
+plt.xlabel('Epoch')
+plt.legend(loc='lower right')
 plt.grid(True)
-plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_top1_accuracy.png')
-
+plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_accuracy.png')
+plt.show()
+# Plot Top-2 Training and Validation Accuracy
 plt.figure()
-plt.plot(list(range(epochs)), top2_train_acc)    # plot your training accuracy
-plt.plot(list(range(epochs)), top2_test_acc)     # plot your testing accuracy
-plt.title('Top 2 acc')
-plt.ylabel('acc (%)'), plt.xlabel('epoch')
-plt.legend(['training acc', 'val acc'], loc = 'upper left')
+plt.plot(range(1, len(top2_train_acc)+1), top2_train_acc, label='Top-2 Training Accuracy')
+plt.plot(range(1, len(top2_val_acc)+1), top2_val_acc, label='Top-2 Validation Accuracy')
+plt.title('Top-2 Training and Validation Accuracy')
+plt.ylabel('Top-2 Accuracy (%)')
+plt.xlabel('Epoch')
+plt.legend(loc='lower right')
 plt.grid(True)
 plt.savefig(f'cnn1d_{month}_{day}_{hour}_{minute}_top2_accuracy.png')
 plt.show()
-# Save the model
-# %%
+plt.close()
+
 
 cursor.close()
 connction.close()
-

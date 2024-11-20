@@ -138,7 +138,7 @@ class CNN1D(nn.Module):
         self.flatten = nn.Flatten()
         self.fc1 = nn.Linear(83968, 1024)
         self.fc2 = nn.Linear(84480, 1024)
-        self.fc3 = nn.Linear(84480, output_dim)
+        self.fc3 = nn.Linear(18944, output_dim)
 
     def forward(self, x):
         x = self.pool(self.relu(self.batch_norm1(self.conv1(x))))
@@ -309,8 +309,8 @@ class LSTMClassifier(nn.Module):
         self.dropout = nn.Dropout(dropout)
     
     def forward(self, x):
-        h_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)  # hidden state
-        c_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)  # cell state
+        h_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)  # hidden state
+        c_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)  # cell state
         
         out, _ = self.lstm(x, (h_0, c_0))
         out = out[:, -1, :]  # take the last output
@@ -334,7 +334,7 @@ class RNNClassifier(nn.Module):
 
     
     def forward(self, x):
-        h_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+        h_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
         
         out, _ = self.rnn(x, h_0)
         out = out[:, -1, :]  # Take the output from the last time step
@@ -429,7 +429,7 @@ class TransformerClassifier(nn.Module):
         
         return output
 if __name__=="__main__":
-    
+    data_length = 2377
     # Example of parallel CNN
     model = multi_channel_CNN_v2(num_classes=6, pipe_num=4)
 
@@ -443,25 +443,33 @@ if __name__=="__main__":
 
     output = model((image1, image2, image3, image4),)
     print(output.shape)  
+    input_shape = (6,data_length)
 
     # CNN-1D example
     model = CNN1D(input_dim=6, output_dim=6)
 
-    input_tensor = torch.randn((1, 6, 10568))  # Batch size 1, input dimension 6, sequence length 10568
-    # summary(model, (6,10568))
+    input_tensor = torch.randn((1, 6, data_length))  # Batch size 1, input dimension 6, sequence length 10568
+    # summary(model, (6,data_length))
     output = model(input_tensor)
     print(output.shape)  
 
     model = CNNLSTMClassifier(input_size=6, num_classes=6, cnn_channels=32, kernel_size=3, lstm_hidden_size=128,lstm_layers=2, dropout=0.5)
-    # summary(model, (6,10568))
+    # summary(model, (6,data_length))
     output = model(input_tensor)
     print(output) 
 
 
-    model = TransformerClassifier(input_dim=6, seq_len=10568, num_classes=6)
+    # model = TransformerClassifier(input_dim=6, seq_len=data_length, num_classes=6)
     # summary(model,(6,10568))
     # output = model(input_tensor)
     # print(output) 
+    
+    # Instantiate the model, loss function, and optimizer
+    # model = LSTMClassifier(input_size=data_length, hidden_size=128, output_size=6, num_layers=2, dropout=0.5)
+    
+    # output = model(input_tensor)
+    # print(output) 
+    # summary(model,input_shape)
     
 
 

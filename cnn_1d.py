@@ -64,17 +64,8 @@ for i, bw in enumerate(min_bandwidth):
 outputs = np.array(outputs)
 
 print('output data shape: ',outputs.shape)
-# Create a histogram
-plt.hist(min_bandwidth, bins=6, edgecolor='black', color='skyblue')
 
-# Add titles and labels
-plt.title('Dataset Distribution')
-plt.xlabel('joint index')
-plt.ylabel('number of data')
-
-# Display the plot
 # plt.show()
-plt.close()
 
 # print(contour_err.shape)
 #%%
